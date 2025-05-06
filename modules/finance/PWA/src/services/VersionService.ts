@@ -4,9 +4,9 @@ import { api } from './apiClient';
 interface VersionInfo {
   version: string;
   buildDate: string;
-  notes: string;
-  requiredUpdate: boolean;
-  features: string[];
+  releaseNotes: string;
+  forceUpdate: boolean;
+  features?: string[];
 }
 
 class VersionService {
