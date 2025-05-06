@@ -1,0 +1,24 @@
+{
+  "modules": {
+    "finance/PWA": {
+      "buildCommand": "npm run build",
+      "outputDir": "dist",
+      "serverPath": "/home/unclutter/domains/finance.unclutter.com.ng/public_html/",
+      "permissions": {
+        "owner": "unclutter",
+        "group": "unclutter",
+        "fileMode": "644",
+        "dirMode": "755"
+      },
+      "versionFile": "version.json",
+      "serviceRestart": false
+    }
+  },
+  "server": {
+    "comment": "Server connection details are now stored in GitHub secrets (SSH_HOST, SSH_USERNAME, SSH_PASSWORD)",
+    "additionalSettings": {
+      "restartServices": false,
+      "notifyAdmins": false
+    }
+  }
+}
