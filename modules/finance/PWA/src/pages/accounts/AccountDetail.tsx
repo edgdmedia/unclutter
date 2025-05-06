@@ -158,17 +158,25 @@ const AccountDetail: React.FC = () => {
   };
 
   const handleDeleteAccount = async () => {
-    if (!id) return;
+    console.log('handleDeleteAccount called with id:', id);
+    if (!id) {
+      console.log('No account ID provided, returning');
+      return;
+    }
     
     setIsLoading(true);
     try {
+      console.log('Calling deleteAccount from AccountContext with id:', id);
       await deleteAccount(id);
+      console.log('Account deleted successfully in API');
       toast.success('Account deleted successfully!');
+      console.log('Setting isDeleted to true');
       setIsDeleted(true); // Set deletion flag instead of navigating directly
     } catch (error) {
       console.error('Failed to delete account:', error);
       toast.error('Failed to delete account. Please try again.');
     } finally {
+      console.log('Cleanup: setting isLoading to false and closing dialog');
       setIsLoading(false);
       setShowDeleteDialog(false);
     }

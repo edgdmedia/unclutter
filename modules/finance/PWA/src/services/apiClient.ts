@@ -79,8 +79,11 @@ api.interceptors.response.use(
         localStorage.removeItem('token');
         localStorage.removeItem('refreshToken');
         
-        // Redirect to login page
-        window.location.href = '/login'; 
+        // Only redirect to login page if we're not already on the login page
+        // This prevents redirect loops
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login';
+        }
         
         return Promise.reject(refreshError);
       }

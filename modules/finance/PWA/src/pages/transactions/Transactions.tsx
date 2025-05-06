@@ -3,16 +3,16 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus, Filter, Search, ChevronDown, ArrowUpRight, ArrowDownLeft, Loader2 } from 'lucide-react';
-import { useFinance } from '@/context/FinanceContext';
 import { Input } from '@/components/ui/input';
 import { format, parseISO } from 'date-fns';
 import TransactionFormDialog from '@/components/transactions/TransactionFormDialog';
 import { toast } from '@/components/ui/sonner';
 import { Transaction } from '@/services/transactionsApi';
 import TransactionList from '@/components/dashboard/TransactionList';
+import { useTransactions } from '@/context/TransactionContext';
 
 const Transactions: React.FC = () => {
-  const { transactions, fetchTransactions, addTransaction } = useFinance();
+  const { transactions, fetchTransactions, addTransaction, updateTransaction, deleteTransaction } = useTransactions();
   const [searchQuery, setSearchQuery] = useState('');
   const [showTransactionForm, setShowTransactionForm] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<any | null>(null);
@@ -112,6 +112,21 @@ const Transactions: React.FC = () => {
     setShowTransactionForm(true);
   };
 
+  const handleEditTransaction = (transaction: Transaction) => {
+    // Reuse the view transaction logic for editing
+    handleViewTransaction(transaction);
+  };
+
+  const handleDeleteTransaction = async (transaction: Transaction) => {
+    try {
+      await deleteTransaction(transaction.id);
+      toast.success('Transaction deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete transaction:', error);
+      toast.error('Failed to delete transaction');
+    }
+  };
+
   return (
     <div className="space-y-6 pb-20 animate-fade-in">
       <div className="flex items-center justify-between">
@@ -120,7 +135,7 @@ const Transactions: React.FC = () => {
           setSelectedTransaction(null);
           setShowTransactionForm(true);
         }}>
-          <Plus size={16} className="mr-1" /> Add Transaction
+          <Plus size={16} className="mr-1" /> Add
         </Button>
       </div>
       
@@ -157,6 +172,9 @@ const Transactions: React.FC = () => {
               <CardContent className="p-2">
                 <TransactionList
                   transactions={dayTransactions}
+                  onEdit={handleEditTransaction}
+                  onDelete={handleDeleteTransaction}
+                  onSelect={handleViewTransaction}
                 />
               </CardContent>
             </Card>

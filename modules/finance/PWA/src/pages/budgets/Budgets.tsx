@@ -1,22 +1,23 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Plus, Filter, Edit } from 'lucide-react';
-import { useFinance } from '@/context/FinanceContext';
+import { useBudgets } from '@/context/BudgetContext';
 import BudgetFormDialog from '@/components/budgets/BudgetFormDialog';
 
 const Budgets: React.FC = () => {
-  const { budgets } = useFinance();
+  const { budgets, fetchBudgets, isLoading } = useBudgets();
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [isBudgetFormOpen, setIsBudgetFormOpen] = useState(false);
   const [selectedBudget, setSelectedBudget] = useState<any>(null);
   
   // Calculate total budget and spent
-  const totalBudgeted = budgets.reduce((sum, budget) => sum + (budget.budgetAmount || 0), 0);
-  const totalSpent = budgets.reduce((sum, budget) => sum + (budget.spentAmount || 0), 0);
+  const budgetsArray = Array.isArray(budgets) ? budgets : [];
+  const totalBudgeted = budgetsArray.reduce((sum, budget) => sum + (budget.budgetAmount || 0), 0);
+  const totalSpent = budgetsArray.reduce((sum, budget) => sum + (budget.spentAmount || 0), 0);
   const remainingPercentage = totalBudgeted > 0 ? Math.min(100, Math.max(0, 100 - (totalSpent / totalBudgeted * 100))) : 100;
   
   const months = [
@@ -31,6 +32,8 @@ const Budgets: React.FC = () => {
     } else {
       setSelectedMonth(selectedMonth - 1);
     }
+    // Fetch budgets for the new month/year
+    fetchBudgets(selectedMonth === 1 ? 12 : selectedMonth - 1, selectedMonth === 1 ? selectedYear - 1 : selectedYear);
   };
 
   const handleNextMonth = () => {
@@ -40,6 +43,8 @@ const Budgets: React.FC = () => {
     } else {
       setSelectedMonth(selectedMonth + 1);
     }
+    // Fetch budgets for the new month/year
+    fetchBudgets(selectedMonth === 12 ? 1 : selectedMonth + 1, selectedMonth === 12 ? selectedYear + 1 : selectedYear);
   };
 
   const handleAddBudget = () => {
@@ -52,8 +57,13 @@ const Budgets: React.FC = () => {
     setIsBudgetFormOpen(true);
   };
 
+  // Fetch budgets when month/year changes
+  useEffect(() => {
+    fetchBudgets(selectedMonth, selectedYear);
+  }, [selectedMonth, selectedYear, fetchBudgets]);
+
   // Sort budgets by percentage spent (highest first)
-  const sortedBudgets = [...budgets].sort((a, b) => {
+  const sortedBudgets = [...budgetsArray].sort((a, b) => {
     const aPercentage = (a.spentAmount || 0) / (a.budgetAmount || 1) * 100;
     const bPercentage = (b.spentAmount || 0) / (b.budgetAmount || 1) * 100;
     return bPercentage - aPercentage;

@@ -59,8 +59,9 @@ const Dashboard: React.FC = () => {
 
   // Fetch dashboard data on component mount
   React.useEffect(() => {
-    // Skip if we've already loaded data and nothing important has changed
-    if (dataLoadedRef.current && dashboardSummary && dashboardTrends && transactions.length > 0) {
+    // Skip if we've already loaded data for this session
+    if (dataLoadedRef.current) {
+      console.log('Dashboard: Data already loaded for this session, skipping');
       return;
     }
     
@@ -77,6 +78,9 @@ const Dashboard: React.FC = () => {
       const isNewUser = currentUserEmail && lastLoadedUserEmail && currentUserEmail !== lastLoadedUserEmail;
       
       console.log(`Current user: ${currentUserEmail}, Last loaded: ${lastLoadedUserEmail}, Is new user: ${isNewUser}`);
+      
+      // Mark that we're loading data for this session to prevent duplicate calls
+      dataLoadedRef.current = true;
       
       if (isNewUser) {
         // New user flow: clear cache, fetch new data, update UI
@@ -98,19 +102,18 @@ const Dashboard: React.FC = () => {
             dashboardTrends: false
           });
           
-          // Fetch all data in parallel
-          await Promise.all([
-            fetchDashboardSummary(),
-            fetchDashboardTrends(),
-            fetchTransactions(5) // Fetch just a few for the dashboard
-          ]);
-          console.log('Successfully fetched all dashboard data for new user');
+          // Fetch all data in parallel - only if not already loading
+          if (!isLoadingSummary && !isLoadingTrends && !isLoadingTransactions) {
+            await Promise.all([
+              fetchDashboardSummary(),
+              fetchDashboardTrends(),
+              fetchTransactions(5) // Fetch just a few for the dashboard
+            ]);
+            console.log('Successfully fetched all dashboard data for new user');
+          }
           
           // Store the current user as the last loaded user
           localStorage.setItem('lastLoadedUserEmail', currentUserEmail);
-          
-          // Mark that we've loaded data for this session
-          dataLoadedRef.current = true;
         } catch (error) {
           console.error('Failed to fetch dashboard data for new user:', error);
         } finally {
@@ -127,71 +130,30 @@ const Dashboard: React.FC = () => {
           setIsLoadingGoals(false);
         }
       } else {
-        // Same user flow: load from DB and refresh with new fetched data
-        console.log('Same user or first load, using normal data loading flow');
+        // Same user flow: just update the last loaded user if needed
+        console.log('Same user or first load, using context-managed data loading');
         
         // Store the current user as the last loaded user if not set
         if (currentUserEmail && !lastLoadedUserEmail) {
           localStorage.setItem('lastLoadedUserEmail', currentUserEmail);
         }
         
-        let dataFetched = false;
-        
-        // Fetch dashboard summary
-        if (!dashboardSummary && !hasAttemptedFetch.dashboardSummary) {
-          try {
-            await fetchDashboardSummary();
-            dataFetched = true;
-          } catch (error) {
-            console.error('Failed to fetch dashboard summary:', error);
-          } finally {
-            setHasAttemptedFetch(prev => ({ ...prev, dashboardSummary: true }));
-          }
-        }
-        
-        // Fetch dashboard trends
-        if (!dashboardTrends && !hasAttemptedFetch.dashboardTrends) {
-          try {
-            await fetchDashboardTrends();
-            dataFetched = true;
-          } catch (error) {
-            console.error('Failed to fetch dashboard trends:', error);
-          } finally {
-            setHasAttemptedFetch(prev => ({ ...prev, dashboardTrends: true }));
-          }
-        }
-        
-        // Fetch recent transactions
-        if (transactions.length === 0 && !hasAttemptedFetch.transactions) {
-          // setIsLoadingTransactions(true); // Handled by TransactionContext
-          try {
-            await fetchTransactions(5); // Fetch just a few for the dashboard
-            dataFetched = true;
-          } catch (error) {
-            console.error('Failed to fetch transactions:', error);
-          } finally {
-            // setIsLoadingTransactions(false); // Handled by TransactionContext
-            setHasAttemptedFetch(prev => ({ ...prev, transactions: true }));
-          }
-        }
-        
-        // If we fetched any data, mark that we've loaded data for this session
-        if (dataFetched) {
-          dataLoadedRef.current = true;
-        }
+        // Let the individual contexts handle their own data loading
+        // We don't need to trigger fetches here as they're handled in the context useEffects
       }
     };
     
     loadData();
   }, [
-    // Data existence checks:
-    dashboardSummary, 
-    transactions, 
-    accounts, // Added accounts for check below
-    // Fetch functions:
-    fetchDashboardSummary, 
+    // Only include the fetch functions and auth state
+    fetchDashboardSummary,
+    fetchDashboardTrends,
     fetchTransactions,
-    fetchAccounts // Added fetchAccounts
+    user, // Only re-run when the user changes
+    // Loading states for conditional fetching:
+    isLoadingTransactions,
+    isLoadingSummary,
+    isLoadingTrends
   ]);
 
   // Using formatCurrency from utils
@@ -299,7 +261,11 @@ const Dashboard: React.FC = () => {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {dashboardSummary && dashboardSummary.accounts ? 
-            dashboardSummary.accounts.slice(0, 3).map((account) => ( // Add .slice(0, 3) here
+            (Array.isArray(dashboardSummary.accounts) 
+              ? dashboardSummary.accounts 
+              : dashboardSummary.accounts.items && Array.isArray(dashboardSummary.accounts.items) 
+                ? dashboardSummary.accounts.items 
+                : []).slice(0, 3).map((account: any) => (
               <AccountCard
                 key={account.id}
                 name={account.name}

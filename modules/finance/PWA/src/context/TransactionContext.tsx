@@ -1,9 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import * as transactionsApi from '../services/transactionsApi';
-import * as dbService from '../services/dbService';
+// IndexedDB imports commented out for API-first approach
+// import * as dbService from '../services/dbService';
 import { Transaction } from '../types';
-import { useAuth } from './AuthContext'; // If needed
-// import { useDashboard } from './DashboardContext'; // If needed
+import { useAuth } from './AuthContext';
+// Removed to avoid circular dependency
+// import { useDashboard } from './DashboardContext';
 
 interface TransactionContextType {
   transactions: Transaction[];
@@ -23,127 +25,85 @@ export const TransactionProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [isLoadingTransactions, setIsLoadingTransactions] = useState<boolean>(false);
   const [isLoadingAccountTransactions, setIsLoadingAccountTransactions] = useState<boolean>(false);
   const { isAuthenticated } = useAuth();
-  // const { fetchDashboardSummary } = useDashboard(); // Get dashboard update function
+  // Removed to avoid circular dependency
+  // const { fetchDashboardSummary } = useDashboard();
 
-  // Ref to prevent duplicate fetches for the same account ID rapidly
+  // Refs to prevent duplicate fetches
   const lastFetchedAccountRef = useRef<string | null>(null);
   const fetchingAccountTxRef = useRef<boolean>(false);
+  const lastFetchedLimitRef = useRef<number>(0);
+  const isFetchingTransactionsRef = useRef<boolean>(false);
+  const lastFetchTimeRef = useRef<number>(0);
 
-  // Fetch recent transactions
+  // Fetch recent transactions - API-first approach with debounce
   const fetchTransactions = useCallback(async (limit: number = 20) => {
     console.log('fetchTransactions called in TransactionContext, limit:', limit);
+    
+    // Prevent duplicate calls within 500ms and with the same limit
+    const now = Date.now();
+    if (
+      isFetchingTransactionsRef.current || 
+      (now - lastFetchTimeRef.current < 500 && lastFetchedLimitRef.current === limit && transactions.length > 0)
+    ) {
+      console.log(`Skipping duplicate transaction fetch. Already fetched ${lastFetchedLimitRef.current} transactions recently.`);
+      return;
+    }
+    
+    // Update refs to prevent duplicate calls
+    isFetchingTransactionsRef.current = true;
+    lastFetchTimeRef.current = now;
+    lastFetchedLimitRef.current = limit;
     setIsLoadingTransactions(true);
+    
     try {
-       // Decide if we should use cache or fetch fresh
-       const shouldSync = await dbService.shouldSync('transactions', limit); // Modify shouldSync if needed
-
-       if (!shouldSync) {
-          const cachedTransactions = await dbService.getTransactions(limit);
-          if (cachedTransactions && cachedTransactions.length > 0) {
-             console.log('Using cached transactions from IndexedDB');
-             setTransactions(cachedTransactions);
-             setIsLoadingTransactions(false);
-             return;
-          }
-       }
-
       console.log('Fetching recent transactions from API...');
       const res = await transactionsApi.getRecentTransactions(limit);
-      let transactionsData: Transaction[] = [];
-
+      
       if (res && res.success && Array.isArray(res.data)) {
-        transactionsData = res.data;
-      } else if (res && res.data && Array.isArray(res.data)) {
-         transactionsData = res.data;
-      } else if (Array.isArray(res)) {
-        transactionsData = res;
+        setTransactions(res.data);
+        console.log(`Successfully fetched ${res.data.length} transactions from API`);
       } else {
         console.warn('Unexpected transactions data format:', res);
+        setTransactions([]);
       }
-
-      if (transactionsData.length > 0) {
-          await dbService.saveTransactions(transactionsData); // Bulk save
-      }
-      setTransactions(transactionsData);
-
     } catch (e) {
       console.error('Error fetching transactions:', e);
-       try {
-          const cachedTransactions = await dbService.getTransactions(limit);
-          if (cachedTransactions && cachedTransactions.length > 0) {
-             console.log('Using cached transactions as fallback:');
-             setTransactions(cachedTransactions);
-          } else {
-            setTransactions([]);
-          }
-       } catch (dbError) {
-          console.error('Error fetching transactions from IndexedDB fallback:', dbError);
-          setTransactions([]);
-       }
+      setTransactions([]);
     } finally {
       setIsLoadingTransactions(false);
+      // Reset fetching state after a short delay
+      setTimeout(() => {
+        isFetchingTransactionsRef.current = false;
+      }, 500);
     }
-  }, []);
+  }, [transactions.length]);
 
-  // Fetch transactions for a specific account
+  // Fetch transactions for a specific account - API-first approach
   const fetchTransactionsByAccount = useCallback(async (accountId: string) => {
     if (fetchingAccountTxRef.current && lastFetchedAccountRef.current === accountId) {
       console.log('Skipping duplicate fetch for account transactions:', accountId);
       return;
     }
-    console.log('fetchTransactionsByAccount called for account:', accountId);
+    
+    // Set fetching state and update refs
     fetchingAccountTxRef.current = true;
     lastFetchedAccountRef.current = accountId;
     setIsLoadingAccountTransactions(true);
-
+    
     try {
-      // Check cache first (implement dbService.getTransactionsByAccount if needed)
-       const shouldSync = await dbService.shouldSync(`transactions_${accountId}`); // Example cache key
-       if (!shouldSync) {
-          const cachedAccountTransactions = await dbService.getTransactionsByAccount(accountId);
-          if (cachedAccountTransactions && cachedAccountTransactions.length > 0) {
-              console.log('Using cached account transactions from IndexedDB for account:', accountId);
-              setTransactions(cachedAccountTransactions);
-              fetchingAccountTxRef.current = false;
-              setIsLoadingAccountTransactions(false);
-              return;
-          }
-       }
-
       console.log('Fetching transactions for account from API:', accountId);
-      const res = await transactionsApi.getTransactionsByAccount(accountId);
-      let accountTransactionsData: Transaction[] = [];
-
+      const res = await transactionsApi.getAccountTransactions(accountId);
+      
       if (res && res.success && Array.isArray(res.data)) {
-        accountTransactionsData = res.data;
-      } else if (Array.isArray(res)) {
-         accountTransactionsData = res;
+        setTransactions(res.data);
+        console.log(`Successfully fetched ${res.data.length} transactions for account ${accountId}`);
       } else {
         console.warn('Unexpected account transactions data format:', res);
+        setTransactions([]);
       }
-      
-      setTransactions(accountTransactionsData); // Overwrite general transactions with account-specific ones
-      if (accountTransactionsData.length > 0) {
-          await dbService.saveTransactionsForAccount(accountId, accountTransactionsData);
-      }
-
     } catch (error) {
       console.error(`Error fetching transactions for account ${accountId}:`, error);
-       try {
-          const cachedAccountTransactions = await dbService.getTransactionsByAccount(accountId);
-          if (cachedAccountTransactions && cachedAccountTransactions.length > 0) {
-              console.log('Using cached account transactions as fallback for account:', accountId);
-              setTransactions(cachedAccountTransactions);
-          } else {
-              // Decide: Clear transactions or keep potentially stale global ones?
-              // setTransactions([]); 
-              console.warn('No fallback transactions found for account:', accountId);
-          }
-       } catch (dbError) {
-          console.error('Error fetching account transactions from IndexedDB fallback:', dbError);
-       }
-       // Maybe re-throw if the component needs to know about the error
-       // throw error;
+      setTransactions([]);
     } finally {
       // Reset fetching state after a short delay
       setTimeout(() => {
@@ -154,13 +114,18 @@ export const TransactionProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, []);
 
   // Initial fetch for recent transactions only when authenticated
+  // Use a ref to track if we've already done the initial fetch
+  const initialFetchDoneRef = useRef(false);
+  
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && !initialFetchDoneRef.current && transactions.length === 0) {
+      console.log('Performing initial transaction fetch');
       fetchTransactions(20); // Fetch recent 20 on load
+      initialFetchDoneRef.current = true;
     }
-  }, [fetchTransactions, isAuthenticated]);
+  }, [fetchTransactions, isAuthenticated, transactions.length]);
 
-  // Add transaction
+  // Add transaction - API-first approach
   const addTransaction = async (transactionData: Omit<Transaction, 'id'>) => {
     setIsLoadingTransactions(true);
     try {
@@ -168,8 +133,7 @@ export const TransactionProvider: React.FC<{ children: React.ReactNode }> = ({ c
       if (response.success && response.data) {
         const newTransaction = response.data;
         setTransactions(prev => [newTransaction, ...prev]);
-        await dbService.saveTransaction(newTransaction);
-        // await fetchDashboardSummary(); // Trigger dashboard update
+        // Note: Dashboard will be updated separately
         return newTransaction;
       } else {
         console.error('Failed to create transaction:', response);
@@ -183,7 +147,7 @@ export const TransactionProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   };
 
-  // Update transaction
+  // Update transaction - API-first approach
   const updateTransaction = async (updatedTransaction: Transaction) => {
     setIsLoadingTransactions(true);
     try {
@@ -191,8 +155,8 @@ export const TransactionProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const response = await transactionsApi.updateTransaction(id, transactionData as any);
       if (response.success) {
         setTransactions(prev => prev.map(t => t.id === id ? updatedTransaction : t));
-        await dbService.saveTransaction(updatedTransaction);
-        // await fetchDashboardSummary(); // Trigger dashboard update
+        // Note: Dashboard will be updated separately
+        return updatedTransaction;
       } else {
         console.error('Failed to update transaction:', response);
         throw new Error(response?.message || 'Failed to update transaction');
@@ -205,15 +169,15 @@ export const TransactionProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   };
 
-  // Delete transaction
+  // Delete transaction - API-first approach
   const deleteTransaction = async (id: string) => {
     setIsLoadingTransactions(true);
     try {
       const response = await transactionsApi.deleteTransaction(id);
       if (response.success) {
         setTransactions(prev => prev.filter(t => t.id !== id));
-        await dbService.deleteTransaction(id);
-        // await fetchDashboardSummary(); // Trigger dashboard update
+        // Note: Dashboard will be updated separately
+        return true;
       } else {
         console.error('Failed to delete transaction:', response);
         throw new Error(response?.message || 'Failed to delete transaction');

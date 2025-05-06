@@ -10,7 +10,8 @@ import { TransactionProvider } from '@/context/TransactionContext';
 import { CategoryProvider } from '@/context/CategoryContext';
 import { DashboardProvider } from '@/context/DashboardContext';
 import React, { Suspense, lazy } from 'react';
-import OfflineNotice from '@/components/ui/OfflineNotice';
+// Removed for API-first approach
+// import OfflineNotice from '@/components/ui/OfflineNotice';
 import { UpdateNotification } from '@/components/UpdateNotification';
 
 // Layouts
@@ -73,7 +74,8 @@ const App = () => {
                   <FinanceProvider>
             <Toaster />
             <Sonner />
-            <OfflineNotice />
+            {/* Removed for API-first approach */}
+            {/* <OfflineNotice /> */}
             <UpdateNotification />
             <BrowserRouter>
               <Routes>

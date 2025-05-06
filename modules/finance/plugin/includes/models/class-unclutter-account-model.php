@@ -85,7 +85,7 @@ class Unclutter_Account_Model extends Unclutter_Base_Model
      * @param int $id Account ID
      * @return bool True on success, false on failure
      */
-    public static function delete_account($id)
+    public static function delete_account($profile_id, $id)
     {
         global $wpdb;
         $table = self::get_table_name();
@@ -93,7 +93,7 @@ class Unclutter_Account_Model extends Unclutter_Base_Model
         // Delete account
         $result = $wpdb->delete(
             $table,
-            ['id' => $id]
+            ['id' => $id, 'profile_id' => $profile_id]
         );
 
         return $result !== false;

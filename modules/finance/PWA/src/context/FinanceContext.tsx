@@ -1,61 +1,37 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import * as dbService from '@/services/dbService'; // Import dbService
-import { Budget, Goal } from '../types'; // Use centralized types
+import React from 'react';
+import { BudgetProvider, useBudgets } from './BudgetContext';
+import { GoalProvider, useGoals } from './GoalContext';
 
 // For debugging - log when FinanceContext is loaded
-console.log('FinanceContext loaded');
+console.log('FinanceContext loaded - Now a wrapper for BudgetProvider and GoalProvider');
 
-// Retain Budget and Goal interfaces if they are defined here uniquely, otherwise import from types.ts
-// Assuming Budget and Goal are now in types.ts
-
-interface FinanceContextType {
-  budgets: Budget[];
-  goals: Goal[];
-  // Add any budget/goal specific functions here if needed in the future
-}
-
-const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
-
+/**
+ * FinanceProvider is now a wrapper component that provides both BudgetContext and GoalContext
+ * This maintains backward compatibility while allowing for more granular context usage
+ */
 export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [budgets, setBudgets] = useState<Budget[]>([]);
-  const [goals, setGoals] = useState<Goal[]>([]);
-  const [db, setDb] = useState<any>(null); // Keep DB init if needed for budgets/goals later
-  
-  // Initialize database when component mounts
-  useEffect(() => {
-    const initializeDb = async () => {
-      try {
-        // Assuming dbService is still needed for budgets/goals
-        const database = await dbService.initDB(); 
-        setDb(database);
-        console.log('Database initialized successfully in FinanceProvider (for Budgets/Goals)');
-      } catch (error) {
-        console.error('Error initializing database in FinanceProvider:', error);
-      }
-    };
-    
-    initializeDb();
-  }, []);
-
-  // Fetch budget/goal data here if applicable
-  // useEffect(() => { ... }, []);
-
-  const value = {
-    budgets,
-    goals,
-  };
-
   return (
-    <FinanceContext.Provider value={value}>
-      {children}
-    </FinanceContext.Provider>
+    <BudgetProvider>
+      <GoalProvider>
+        {children}
+      </GoalProvider>
+    </BudgetProvider>
   );
 };
 
+/**
+ * useFinance hook combines the functionality of useBudgets and useGoals
+ * This maintains backward compatibility while we transition to more specific hooks
+ */
 export const useFinance = () => {
-  const context = useContext(FinanceContext);
-  if (context === undefined) {
-    throw new Error('useFinance must be used within a FinanceProvider');
-  }
-  return context;
+  const budgetContext = useBudgets();
+  const goalContext = useGoals();
+  
+  // Combine both contexts to maintain the original interface
+  return {
+    ...budgetContext,
+    ...goalContext,
+    // Override any conflicting properties if needed
+    isLoading: budgetContext.isLoading || goalContext.isLoading,
+  };
 };

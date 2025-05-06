@@ -42,7 +42,8 @@ import { CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from '@/components/ui/sonner';
 
-import { useFinance } from '@/context/FinanceContext';
+import { useGoals } from '@/context/GoalContext';
+import { useAccounts } from '@/context/AccountContext';
 
 interface GoalFormDialogProps {
   open: boolean;
@@ -69,7 +70,8 @@ const GoalFormDialog: React.FC<GoalFormDialogProps> = ({
   onOpenChange,
   initialGoal,
 }) => {
-  const { accounts } = useFinance();
+  const { accounts } = useAccounts();
+  const { createGoal, updateGoal } = useGoals();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -121,12 +123,39 @@ const GoalFormDialog: React.FC<GoalFormDialogProps> = ({
     }
   }, [initialGoal, form, accounts]);
 
-  const onSubmit = (values: z.infer<typeof formSchema>) => {
-    console.log(values);
-    toast.success(
-      initialGoal ? 'Goal updated successfully!' : 'Goal created successfully!'
-    );
-    onOpenChange(false);
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    try {
+      const goalData = {
+        name: values.name,
+        targetAmount: values.targetAmount,
+        currentAmount: values.currentAmount,
+        startDate: values.startDate.toISOString(),
+        targetDate: values.targetDate.toISOString(),
+        description: values.description || '',
+        linkedAccount: values.linkedAccount ? { id: values.linkedAccount } : null,
+        goalType: values.goalType,
+        percentageOfIncome: values.percentageOfIncome || 0,
+        enableAutoContribute: values.enableAutoContribute,
+        status: 'active'
+      };
+
+      if (initialGoal) {
+        // Update existing goal
+        await updateGoal({
+          id: values.id as string,
+          ...goalData
+        });
+        toast.success('Goal updated successfully!');
+      } else {
+        // Create new goal
+        await createGoal(goalData);
+        toast.success('Goal created successfully!');
+      }
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Error saving goal:', error);
+      toast.error('Failed to save goal. Please try again.');
+    }
   };
 
   return (

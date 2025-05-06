@@ -1,11 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as accountsApi from '../services/accountsApi';
-import * as dbService from '../services/dbService';
 import { Account } from '../types';
-// Import useAuth to check authentication status if needed, though fetching might be triggered externally
-import { useAuth } from './AuthContext'; 
-// Import a potential DashboardContext hook if needed for triggering updates
-// import { useDashboard } from './DashboardContext'; 
+import { useAuth } from './AuthContext';
+// Removed to avoid circular dependency
+// import { useDashboard } from './DashboardContext';
 
 interface AccountContextType {
   accounts: Account[];
@@ -23,56 +21,26 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isLoadingAccounts, setIsLoadingAccounts] = useState<boolean>(false);
   const { isAuthenticated } = useAuth(); // Get auth status
-  // const { fetchDashboardSummary } = useDashboard(); // Get dashboard update function
+  // Removed to avoid circular dependency
+  // const { fetchDashboardSummary } = useDashboard();
 
-  // Fetch accounts from API with IndexedDB caching
+  // Fetch accounts - API-first approach
   const fetchAccounts = useCallback(async () => {
     console.log('fetchAccounts called in AccountContext');
     setIsLoadingAccounts(true);
     try {
-      const shouldSync = await dbService.shouldSync('accounts');
-      if (!shouldSync) {
-        const cachedAccounts = await dbService.getAccounts();
-        if (cachedAccounts && cachedAccounts.length > 0) {
-          console.log('Using cached accounts from IndexedDB');
-          setAccounts(cachedAccounts);
-          setIsLoadingAccounts(false);
-          return;
-        }
-      }
-
       console.log('Fetching accounts from API...');
       const res = await accountsApi.getAccounts();
-      let accountsData: Account[] = [];
-
-      if (res && res.success && Array.isArray(res.data)) {
-        accountsData = res.data;
-      } else if (res && res.data && Array.isArray(res.data)) {
-        accountsData = res.data;
-      } else if (Array.isArray(res)) {
-        accountsData = res;
+      if (res.success && res.data) {
+        setAccounts(res.data);
+        console.log('Accounts fetched successfully:', res.data.length);
       } else {
-        console.warn('Unexpected accounts data format:', res);
-      }
-
-      if (accountsData.length > 0) {
-        await dbService.saveAccounts(accountsData);
-      }
-      setAccounts(accountsData);
-    } catch (e) {
-      console.error('Error fetching accounts:', e);
-      try {
-        const cachedAccounts = await dbService.getAccounts();
-        if (cachedAccounts && cachedAccounts.length > 0) {
-          console.log('Using cached accounts as fallback:');
-          setAccounts(cachedAccounts);
-        } else {
-          setAccounts([]);
-        }
-      } catch (dbError) {
-        console.error('Error fetching accounts from IndexedDB fallback:', dbError);
+        console.warn('Failed to fetch accounts or no data returned:', res);
         setAccounts([]);
       }
+    } catch (e) {
+      console.error('Error fetching accounts:', e);
+      setAccounts([]);
     } finally {
       setIsLoadingAccounts(false);
     }
@@ -85,44 +53,43 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
       fetchAccounts();
     }
   }, [isAuthenticated, fetchAccounts]);
+  
+  // No need for account change events with API-first approach
+  // Each component will fetch fresh data when needed
 
-  // Add account
+  // Add account - API-first approach
   const addAccount = async (data: Partial<Omit<Account, 'id'>>) => {
     setIsLoadingAccounts(true);
     try {
-      const response = await accountsApi.createAccount(data);
-      if (response && response.success && response.account) {
-        const newAccount = response.account;
-        setAccounts(prev => [...prev, newAccount]);
-        await dbService.saveAccount(newAccount);
-        // await fetchDashboardSummary(); // Trigger dashboard update if needed
-        return newAccount;
+      const res = await accountsApi.createAccount(data);
+      if (res.success && res.data) {
+        // Add to local state
+        setAccounts(prev => [res.data, ...prev]);
+        // Note: Dashboard will be updated separately
+        return res.data;
       } else {
-        console.error('Failed to add account:', response);
-        throw new Error(response?.message || 'Failed to add account');
+        throw new Error(res.message || 'Failed to create account');
       }
     } catch (e) {
       console.error('Error adding account:', e);
-      throw e; // Re-throw
+      throw e; // Re-throw for component to handle
     } finally {
       setIsLoadingAccounts(false);
     }
   };
 
-  // Update account
-  const updateAccount = async (id: string, data: Partial<Account>) => {
+  // Update account - API-first approach
+  const updateAccount = async (id: string, data: Partial<Omit<Account, 'id'>>) => {
     setIsLoadingAccounts(true);
     try {
-      const response = await accountsApi.updateAccount(id, data);
-      if (response && response.success && response.account) {
-        const updatedAccount = response.account;
-        setAccounts(prev => prev.map(acc => acc.id === id ? updatedAccount : acc));
-        await dbService.saveAccount(updatedAccount);
-        // await fetchDashboardSummary(); // Trigger dashboard update
-        return updatedAccount;
+      const res = await accountsApi.updateAccount(id, data);
+      if (res.success && res.data) {
+        // Update in local state
+        setAccounts(prev => prev.map(acc => acc.id === id ? res.data : acc));
+        // Note: Dashboard will be updated separately
+        return res.data;
       } else {
-        console.error('Failed to update account:', response);
-        throw new Error(response?.message || 'Failed to update account');
+        throw new Error(res.message || 'Failed to update account');
       }
     } catch (e) {
       console.error('Error updating account:', e);
@@ -132,16 +99,27 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
-  // Delete account
+  // Delete account - API-first approach
   const deleteAccount = async (id: string) => {
+    console.log('[AccountContext] deleteAccount called with id:', id);
     setIsLoadingAccounts(true);
     try {
-      await accountsApi.deleteAccount(id);
-      setAccounts(prev => prev.filter(acc => acc.id !== id));
-      await dbService.deleteAccount(id);
-      // await fetchDashboardSummary(); // Trigger dashboard update
+      console.log('[AccountContext] Calling API to delete account...');
+      const response = await accountsApi.deleteAccount(id);
+      console.log('[AccountContext] API response for delete account:', response);
+      
+      if (response.success) {
+        console.log('[AccountContext] Updating local state...');
+        setAccounts(prev => prev.filter(acc => acc.id !== id));
+        console.log('[AccountContext] Account deletion complete');
+        // Note: Dashboard will be updated separately
+        return true;
+      } else {
+        console.error('[AccountContext] API returned error for delete account:', response);
+        throw new Error(response.message || 'Failed to delete account');
+      }
     } catch (e) {
-      console.error('Error deleting account:', e);
+      console.error('[AccountContext] Error deleting account:', e);
       throw e; // Re-throw
     } finally {
       setIsLoadingAccounts(false);

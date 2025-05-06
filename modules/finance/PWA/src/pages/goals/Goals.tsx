@@ -5,17 +5,18 @@ import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Clock, Calendar, ChevronRight } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { useFinance } from '@/context/FinanceContext';
+import { useGoals } from '@/context/GoalContext';
 import { formatCurrency } from '@/utils/formatters';
 import GoalFormDialog from '@/components/goals/GoalFormDialog';
 
 const Goals: React.FC = () => {
-  const { goals } = useFinance();
+  const { goals } = useGoals();
   const [isGoalFormOpen, setIsGoalFormOpen] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState<any>(null);
 
-  const activeGoals = goals.filter(goal => goal.status === 'active');
-  const completedGoals = goals.filter(goal => goal.status === 'completed');
+  const goalsArray = Array.isArray(goals) ? goals : [];
+  const activeGoals = goalsArray.filter(goal => goal.status === 'active');
+  const completedGoals = goalsArray.filter(goal => goal.status === 'completed');
 
   const handleAddGoal = () => {
     setSelectedGoal(null);

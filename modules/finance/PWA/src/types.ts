@@ -22,11 +22,11 @@ export type { Transaction };
 
 export interface Budget {
   id: string;
-  category_id: string;
-  amount: number;
-  spent: number;
-  period: string;
-  category_name: string;
+  category: Category;
+  budgetAmount: number;
+  spentAmount: number;
+  month: number;
+  year: number;
 }
 
 export interface Goal {

@@ -21,7 +21,8 @@ import { useFinance } from '@/context/FinanceContext';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from '@/components/ui/sonner';
 import * as userApi from '@/services/userApi';
-import * as dbService from '@/services/dbService';
+// Removed for API-first approach
+// import * as dbService from '@/services/dbService';
 import { useNavigate } from 'react-router-dom';
 
 const ProfileSchema = z.object({
@@ -117,11 +118,11 @@ const Settings: React.FC = () => {
     }
   }, [authUser, profileForm]);
 
-  // Load user settings on component mount
+  // Load user settings on component mount - API-first approach
   useEffect(() => {
     const loadUserSettings = async () => {
       try {
-        // Try to load profile from API first
+        // Load profile from API
         try {
           const profileData = await userApi.getUserProfile();
           if (profileData?.success) {
@@ -131,55 +132,40 @@ const Settings: React.FC = () => {
               email: profileData.data.email,
               phone: profileData.data.phone || '',
             });
-            // Save to IndexedDB for offline use
-            await dbService.saveUserSettings('profile', profileData.data);
           }
         } catch (error) {
-          console.error('Error loading profile from API, trying IndexedDB:', error);
-          // If API fails, try to load from IndexedDB
-          const localProfile = await dbService.getUserSettings('profile');
-          if (localProfile) {
+          console.error('Error loading profile from API:', error);
+          // If API fails, use defaults or current form values
+          if (authUser) {
             profileForm.reset({
-              firstName: localProfile.firstName,
-              lastName: localProfile.lastName,
-              email: localProfile.email,
-              phone: localProfile.phone || '',
+              firstName: authUser.first_name || '',
+              lastName: authUser.last_name || '',
+              email: authUser.email || '',
+              phone: profileForm.getValues().phone || '',
             });
           }
         }
 
-        // Load preferences
+        // Load preferences from API
         try {
           const preferencesData = await userApi.getUserPreferences();
           if (preferencesData?.success) {
             preferencesForm.reset(preferencesData.data);
-            // Save to IndexedDB for offline use
-            await dbService.saveUserSettings('preferences', preferencesData.data);
           }
         } catch (error) {
-          console.error('Error loading preferences from API, trying IndexedDB:', error);
-          // If API fails, try to load from IndexedDB
-          const localPreferences = await dbService.getUserSettings('preferences');
-          if (localPreferences) {
-            preferencesForm.reset(localPreferences);
-          }
+          console.error('Error loading preferences from API:', error);
+          // Keep default values if API fails
         }
 
-        // Load notification settings
+        // Load notification settings from API
         try {
           const notificationsData = await userApi.getUserNotifications();
           if (notificationsData?.success) {
             notificationForm.reset(notificationsData.data);
-            // Save to IndexedDB for offline use
-            await dbService.saveUserSettings('notifications', notificationsData.data);
           }
         } catch (error) {
-          console.error('Error loading notifications from API, trying IndexedDB:', error);
-          // If API fails, try to load from IndexedDB
-          const localNotifications = await dbService.getUserSettings('notifications');
-          if (localNotifications) {
-            notificationForm.reset(localNotifications);
-          }
+          console.error('Error loading notifications from API:', error);
+          // Keep default values if API fails
         }
       } catch (error) {
         console.error('Error loading user settings:', error);
@@ -208,8 +194,6 @@ const Settings: React.FC = () => {
             email: values.email
           });
         }
-        // Save to IndexedDB for offline use
-        await dbService.saveUserSettings('profile', values);
       } else {
         throw new Error(result.message || 'Failed to update profile');
       }
@@ -248,26 +232,12 @@ const Settings: React.FC = () => {
       setIsLoading(prev => ({ ...prev, preferences: true }));
       console.log('Updating preferences:', values);
       
-      // Save to API
+      // Save to API - API-first approach
       await userApi.updateUserPreferences(values);
-      
-      // Save to IndexedDB for offline use
-      await dbService.saveUserSettings('preferences', values);
-      
       toast.success('Preferences updated successfully!');
     } catch (error) {
       console.error('Error updating preferences:', error);
       toast.error('Failed to update preferences');
-      
-      // If API fails but we're online, still save to IndexedDB
-      if (navigator.onLine) {
-        try {
-          await dbService.saveUserSettings('preferences', values);
-          toast.info('Preferences saved locally, will sync when online');
-        } catch (dbError) {
-          console.error('Error saving preferences to IndexedDB:', dbError);
-        }
-      }
     } finally {
       setIsLoading(prev => ({ ...prev, preferences: false }));
     }
@@ -278,26 +248,12 @@ const Settings: React.FC = () => {
       setIsLoading(prev => ({ ...prev, notifications: true }));
       console.log('Updating notification settings:', values);
       
-      // Save to API
+      // Save to API - API-first approach
       await userApi.updateUserNotifications(values);
-      
-      // Save to IndexedDB for offline use
-      await dbService.saveUserSettings('notifications', values);
-      
       toast.success('Notification settings updated successfully!');
     } catch (error) {
       console.error('Error updating notification settings:', error);
       toast.error('Failed to update notification settings');
-      
-      // If API fails but we're online, still save to IndexedDB
-      if (navigator.onLine) {
-        try {
-          await dbService.saveUserSettings('notifications', values);
-          toast.info('Notification settings saved locally, will sync when online');
-        } catch (dbError) {
-          console.error('Error saving notification settings to IndexedDB:', dbError);
-        }
-      }
     } finally {
       setIsLoading(prev => ({ ...prev, notifications: false }));
     }

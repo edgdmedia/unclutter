@@ -1,5 +1,5 @@
-import axios from 'axios';
-import { openDB } from 'idb';
+import { api } from './apiClient';
+// Removed IndexedDB dependency for API-first approach
 
 interface VersionInfo {
   version: string;
@@ -10,19 +10,9 @@ interface VersionInfo {
 }
 
 class VersionService {
-  private dbPromise: Promise<IDBDatabase>;
   private currentVersion: string = '1.0.0';
   
   constructor() {
-    // Initialize IndexedDB for version tracking
-    this.dbPromise = openDB('finance-pwa-version', 1, {
-      upgrade(db) {
-        if (!db.objectStoreNames.contains('version')) {
-          db.createObjectStore('version');
-        }
-      },
-    });
-    
     // Set current version from package.json
     this.currentVersion = import.meta.env.VITE_APP_VERSION || '1.0.0';
   }
@@ -33,14 +23,11 @@ class VersionService {
   async checkForUpdates(): Promise<{ hasUpdate: boolean; versionInfo: VersionInfo | null }> {
     try {
       // Add cache-busting query parameter to avoid caching
-      const response = await axios.get<VersionInfo>(`/version.json?_=${Date.now()}`);
+      const response = await api.get<VersionInfo>(`/version.json?_=${Date.now()}`);
       const serverVersion = response.data;
       
-      // Store the latest version info in IndexedDB
-      const db = await this.dbPromise;
-      const tx = db.transaction('version', 'readwrite');
-      const store = tx.objectStore('version');
-      await store.put(serverVersion, 'latest');
+      // Store the latest version info in localStorage
+      localStorage.setItem('latest-version', JSON.stringify(serverVersion));
       
       // Compare versions to determine if update is needed
       const hasUpdate = this.compareVersions(this.currentVersion, serverVersion.version) < 0;
@@ -73,14 +60,15 @@ class VersionService {
   }
   
   /**
-   * Get the last known version info from IndexedDB
+   * Get the last known version info from localStorage
    */
   async getLastKnownVersion(): Promise<VersionInfo | null> {
     try {
-      const db = await this.dbPromise;
-      const tx = db.transaction('version', 'readonly');
-      const store = tx.objectStore('version');
-      return await store.get('latest');
+      const versionData = localStorage.getItem('latest-version');
+      if (versionData) {
+        return JSON.parse(versionData) as VersionInfo;
+      }
+      return null;
     } catch (error) {
       console.error('Failed to get last known version:', error);
       return null;

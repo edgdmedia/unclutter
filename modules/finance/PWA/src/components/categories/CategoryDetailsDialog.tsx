@@ -16,7 +16,7 @@ import { ArrowRight, ArrowUpRight, ArrowDownRight, Plus, ExternalLink } from 'lu
 import { toast } from '@/components/ui/sonner';
 import * as categoriesApi from '@/services/categoriesApi';
 import { Category } from '@/services/categoriesApi';
-import { useFinance } from '@/context/FinanceContext';
+import { useCategories } from '@/context/CategoryContext';
 import { useNavigate } from 'react-router-dom';
 
 interface CategoryDetailsDialogProps {
@@ -52,7 +52,7 @@ const CategoryDetailsDialog: React.FC<CategoryDetailsDialogProps> = ({
   const [details, setDetails] = useState<CategoryDetails | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
-  const { fetchCategories } = useFinance();
+  const { fetchCategories } = useCategories();
   const navigate = useNavigate();
 
   useEffect(() => {

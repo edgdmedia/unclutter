@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as categoriesApi from '../services/categoriesApi';
-import * as dbService from '../services/dbService';
+// Removed for API-first approach
+// import * as dbService from '../services/dbService';
 import { Category } from '../types';
 import { useAuth } from './AuthContext'; // If needed
 
@@ -22,17 +23,6 @@ export const CategoryProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     console.log('fetchCategories called in CategoryContext');
     setIsLoadingCategories(true);
     try {
-      const shouldSync = await dbService.shouldSync('categories');
-      if (!shouldSync) {
-        const cachedCategories = await dbService.getCategories();
-        if (cachedCategories && cachedCategories.length > 0) {
-          console.log('Using cached categories from IndexedDB');
-          setCategories(cachedCategories);
-          setIsLoadingCategories(false);
-          return;
-        }
-      }
-
       console.log('Fetching categories from API...');
       const res = await categoriesApi.getCategories();
       let categoriesData: Category[] = [];
@@ -47,24 +37,10 @@ export const CategoryProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         console.warn('Unexpected categories data format:', res);
       }
 
-      if (categoriesData.length > 0) {
-        await dbService.saveCategories(categoriesData);
-      }
       setCategories(categoriesData);
     } catch (e) {
       console.error('Error fetching categories:', e);
-      try {
-        const cachedCategories = await dbService.getCategories();
-        if (cachedCategories && cachedCategories.length > 0) {
-          console.log('Using cached categories as fallback:');
-          setCategories(cachedCategories);
-        } else {
-           setCategories([]);
-        }
-      } catch (dbError) {
-        console.error('Error fetching categories from IndexedDB fallback:', dbError);
-        setCategories([]);
-      }
+      setCategories([]);
     } finally {
       setIsLoadingCategories(false);
     }

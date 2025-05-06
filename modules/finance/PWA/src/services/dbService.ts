@@ -332,6 +332,39 @@ export const getAccount = async (id: string): Promise<any | undefined> => {
   return db.get('accounts', id);
 };
 
+export const deleteAccount = async (id: string): Promise<void> => {
+  console.log('Deleting account from IndexedDB:', id);
+  try {
+    const db = await initDB();
+    
+    // Delete the account from the accounts store
+    await db.delete('accounts', id);
+    console.log(`Account ${id} deleted from accounts store`);
+    
+    // Also delete any related account transactions
+    try {
+      await db.delete('accountTransactions', id);
+      console.log(`Account transactions for account ${id} deleted from accountTransactions store`);
+    } catch (e) {
+      console.log(`No account transactions found for account ${id} to delete`);
+    }
+    
+    // Update the last sync timestamp to indicate data has changed
+    await db.put('lastSync', {
+      entity: 'accounts',
+      timestamp: Date.now()
+    });
+    
+    // Force a refresh of the accounts cache
+    window.dispatchEvent(new CustomEvent('accountsChanged', { detail: { id } }));
+    
+    return;
+  } catch (error) {
+    console.error(`Error deleting account ${id} from IndexedDB:`, error);
+    throw error;
+  }
+};
+
 // Categories operations
 export const saveCategories = async (categories: any[]): Promise<void> => {
   try {
@@ -503,6 +536,54 @@ export const getTransactions = async (limit?: number): Promise<any[]> => {
 export const getTransaction = async (id: string): Promise<any | undefined> => {
   const db = await initDB();
   return db.get('transactions', id);
+};
+
+// Save transactions for a specific account
+export const saveTransactionsForAccount = async (accountId: string, transactions: any[]): Promise<void> => {
+  console.log('Saving transactions for account to IndexedDB:', accountId, transactions.length);
+  try {
+    const db = await initDB();
+    
+    // First, save the transactions to the main transactions store
+    for (const transaction of transactions) {
+      await db.put('transactions', transaction);
+    }
+    console.log('Account transactions saved to transactions store');
+    
+    // Then save the account-transactions relationship
+    await db.put('accountTransactions', {
+      accountId,
+      transactions,
+      lastUpdated: new Date().toISOString()
+    });
+    console.log('Account transactions saved to accountTransactions store');
+  } catch (error) {
+    console.error('Error saving account transactions to IndexedDB:', error);
+    throw error;
+  }
+};
+
+// Get transactions for a specific account
+export const getTransactionsByAccount = async (accountId: string): Promise<any[]> => {
+  console.log('Getting transactions for account from IndexedDB:', accountId);
+  try {
+    const db = await initDB();
+    const accountTransactions = await db.get('accountTransactions', accountId);
+    
+    if (accountTransactions && Array.isArray(accountTransactions.transactions)) {
+      console.log(`Found ${accountTransactions.transactions.length} transactions for account ${accountId} in IndexedDB`);
+      return accountTransactions.transactions;
+    }
+    
+    // If no specific account transactions are found, try to filter from the main transactions store
+    const allTransactions = await db.getAll('transactions');
+    const filteredTransactions = allTransactions.filter(tx => tx.account_id === accountId);
+    console.log(`Filtered ${filteredTransactions.length} transactions for account ${accountId} from main store`);
+    return filteredTransactions;
+  } catch (error) {
+    console.error('Error getting account transactions from IndexedDB:', error);
+    return [];
+  }
 };
 
 // Offline queue operations

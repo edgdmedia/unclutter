@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useFinance } from '@/context/FinanceContext';
+import { useCategories } from '@/context/CategoryContext';
 
 import {
   Dialog,
@@ -69,7 +69,7 @@ const CategoryDialog: React.FC<CategoryDialogProps> = ({
   onSave,
   parentId
 }) => {
-  const { categories } = useFinance();
+  const { categories } = useCategories();
   const [parentCategories, setParentCategories] = useState<Category[]>([]);
   
   // Filter parent categories based on the selected type

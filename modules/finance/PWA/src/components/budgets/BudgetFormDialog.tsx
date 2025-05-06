@@ -30,7 +30,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/sonner';
 
-import { useFinance } from '@/context/FinanceContext';
+import { useCategories } from '@/context/CategoryContext';
+import { useBudgets } from '@/context/BudgetContext';
 
 interface BudgetFormDialogProps {
   open: boolean;
@@ -70,7 +71,7 @@ const BudgetFormDialog: React.FC<BudgetFormDialogProps> = ({
   month = new Date().getMonth() + 1,
   year = new Date().getFullYear(),
 }) => {
-  const { categories } = useFinance();
+  const { categories } = useCategories();
   const expenseCategories = categories.filter(cat => cat.type === 'expense');
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -102,17 +103,48 @@ const BudgetFormDialog: React.FC<BudgetFormDialogProps> = ({
     }
   }, [initialBudget, form, month, year]);
 
-  const onSubmit = (values: z.infer<typeof formSchema>) => {
-    console.log(values);
-    toast.success(
-      initialBudget ? 'Budget updated successfully!' : 'Budget added successfully!'
-    );
-    onOpenChange(false);
+  const { createBudget, updateBudget, copyBudgetsFromPreviousMonth } = useBudgets();
+
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    try {
+      if (initialBudget) {
+        // Update existing budget
+        await updateBudget({
+          id: values.id as string,
+          category: expenseCategories.find(cat => cat.id === values.category) || expenseCategories[0],
+          budgetAmount: values.budgetAmount,
+          month: values.month,
+          year: values.year,
+          spentAmount: initialBudget.spentAmount || 0
+        });
+        toast.success('Budget updated successfully!');
+      } else {
+        // Create new budget
+        await createBudget({
+          category: expenseCategories.find(cat => cat.id === values.category) || expenseCategories[0],
+          budgetAmount: values.budgetAmount,
+          month: values.month,
+          year: values.year,
+          spentAmount: 0
+        });
+        toast.success('Budget added successfully!');
+      }
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Error saving budget:', error);
+      toast.error('Failed to save budget. Please try again.');
+    }
   };
 
-  const handleCopyLastMonth = () => {
-    toast.success('Budgets copied from previous month!');
-    onOpenChange(false);
+  const handleCopyLastMonth = async () => {
+    try {
+      await copyBudgetsFromPreviousMonth(month, year);
+      toast.success('Budgets copied from previous month!');
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Error copying budgets:', error);
+      toast.error('Failed to copy budgets. Please try again.');
+    }
   };
 
   return (

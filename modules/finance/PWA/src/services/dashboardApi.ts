@@ -1,4 +1,3 @@
-import axios from 'axios';
 import { api } from './apiClient';
 
 // For debugging - log the API base URL
@@ -9,6 +8,21 @@ export interface DashboardSummary {
   total_expenses: number;
   net_balance: number;
   accounts: {
+    items?: {
+      id: string;
+      profile_id: string;
+      name: string;
+      type_id: string;
+      balance: string;
+      description: string;
+      institution: string;
+      is_active: string;
+      created_at: string;
+      updated_at: string;
+      type_name: string;
+      category_type: string;
+    }[];
+  } | {
     id: string;
     profile_id: string;
     name: string;
@@ -22,6 +36,8 @@ export interface DashboardSummary {
     type_name: string;
     category_type: string;
   }[];
+  budgets?: any[];
+  goals?: any[];
 }
 
 export interface DashboardTrends {

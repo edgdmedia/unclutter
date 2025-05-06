@@ -22,17 +22,20 @@ interface DeleteAccountDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   account: Account | null;
+  onConfirmDelete: () => void;
 }
 
 const DeleteAccountDialog: React.FC<DeleteAccountDialogProps> = ({
   open,
   onOpenChange,
   account,
+  onConfirmDelete
 }) => {
   const handleDelete = () => {
     if (account) {
-      toast.success(`Account "${account.name}" successfully deleted`);
-      onOpenChange(false);
+      console.log('Delete button clicked in dialog, calling onConfirmDelete');
+      onConfirmDelete();
+      // Note: toast and dialog closing are now handled in the parent component
     }
   };
 

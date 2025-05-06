@@ -95,7 +95,6 @@ const Categories: React.FC = () => {
 
   const handleSaveCategory = async (category: Category) => {
     setIsLoading(true);
-    const originalCategories = [...categories]; // Store original state for potential rollback
     let savedCategory: Category | null = null;
 
     try {
@@ -105,37 +104,25 @@ const Categories: React.FC = () => {
       };
 
       if (editingCategory && editingCategory.id) {
-        // --- Optimistic Update (Edit) ---
-        setCategories(prev => 
-          prev.map(cat => 
-            cat.id === editingCategory.id ? { ...cat, ...categoryData } : cat
-          )
-        );
-        // -------------------------------
+        // Update existing category
         savedCategory = await categoriesApi.updateCategory(editingCategory.id, categoryData);
-        toast.success("Category updated successfully!");
+        if (savedCategory) {
+          toast.success("Category updated successfully!");
+          // Refresh categories after update
+          fetchCategories();
+        }
       } else {
-        // --- Optimistic Add (Placeholder ID) ---
-        const tempId = `temp-${Date.now()}`;
-        const optimisticCategory = { ...categoryData, id: tempId }; 
-        setCategories(prev => [...prev, optimisticCategory]);
-        // ------------------------------------
+        // Create new category
         savedCategory = await categoriesApi.createCategory(categoryData);
-        toast.success("Category created successfully!");
-        // --- Update UI with Real ID ---
-        setCategories(prev => 
-          prev.map(cat => 
-            cat.id === tempId ? { ...savedCategory, id: savedCategory.id } : cat
-          )
-        );
-        // ---------------------------
+        if (savedCategory) {
+          toast.success("Category created successfully!");
+          // Refresh categories after creation
+          fetchCategories();
+        }
       }
     } catch (error) {
       console.error('Error saving category:', error);
       toast.error("Failed to save category");
-      // --- Rollback on error ---
-      setCategories(originalCategories);
-      // -----------------------
     } finally {
       setIsLoading(false);
       setIsAddDialogOpen(false);
@@ -147,28 +134,21 @@ const Categories: React.FC = () => {
   const handleConfirmDelete = async () => {
     if (categoryToDelete) {
       setIsLoading(true);
-      const originalCategories = [...categories]; // Store original state for potential rollback
       const categoryIdToDelete = categoryToDelete.id;
-
-      // --- Optimistic Delete ---
-      setCategories(prev => prev.filter(cat => cat.id !== categoryIdToDelete));
-      // -----------------------
       
       try {
         if (categoriesApi.isGlobalCategory(categoryToDelete)) {
           toast.error("Cannot delete global categories");
-          setCategories(originalCategories); // Rollback
           return;
         }
 
         await categoriesApi.deleteCategory(categoryIdToDelete);
         toast.success(`Category "${categoryToDelete.name}" deleted successfully!`);
+        // Refresh categories after deletion
+        fetchCategories();
       } catch (error) {
         console.error('Error deleting category:', error);
         toast.error("Failed to delete category");
-        // --- Rollback on error ---
-        setCategories(originalCategories);
-        // -----------------------
       } finally {
         setIsLoading(false);
         setIsDeleteDialogOpen(false);

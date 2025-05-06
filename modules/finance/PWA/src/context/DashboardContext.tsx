@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import * as dashboardApi from '../services/dashboardApi';
-import * as dbService from '../services/dbService'; // Caching dashboard data might be complex
+// Removed for API-first approach
+// import * as dbService from '../services/dbService';
 import { DashboardSummary, DashboardTrends } from '../types';
 import { useAuth } from './AuthContext'; // If needed
 
@@ -24,18 +25,14 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [isLoadingTrends, setIsLoadingTrends] = useState<boolean>(false);
   const { isAuthenticated } = useAuth();
 
-  // Fetch dashboard summary
+  // Fetch dashboard summary - API-first approach
   const fetchDashboardSummary = useCallback(async () => {
     console.log('fetchDashboardSummary called in DashboardContext');
     setIsLoadingSummary(true);
     try {
-       // Add caching logic here if desired (e.g., using dbService or localStorage)
-       // const cachedSummary = await dbService.getDashboardSummary(); ...
-
       const res = await dashboardApi.getDashboardSummary();
       if (res.success && res.data) {
         setDashboardSummary(res.data);
-        // await dbService.saveDashboardSummary(res.data); // Save to cache
       } else {
         setDashboardSummary(null); // Clear on failure or no data
         console.warn('Failed to fetch dashboard summary or no data returned:', res);
@@ -43,23 +40,19 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     } catch (e) {
       console.error('Error fetching dashboard summary:', e);
       setDashboardSummary(null); // Clear on error
-      // Try loading from cache as fallback?
-      // const cachedSummary = await dbService.getDashboardSummary(); setDashboardSummary(cachedSummary);
     } finally {
       setIsLoadingSummary(false);
     }
   }, []);
 
-  // Fetch dashboard trends
+  // Fetch dashboard trends - API-first approach
   const fetchDashboardTrends = useCallback(async () => {
     console.log('fetchDashboardTrends called in DashboardContext');
     setIsLoadingTrends(true);
     try {
-      // Add caching logic here if desired
       const res = await dashboardApi.getDashboardTrends();
       if (res.success && res.data) {
         setDashboardTrends(res.data);
-        // await dbService.saveDashboardTrends(res.data); // Save to cache
       } else {
         setDashboardTrends(null); // Clear on failure or no data
         console.warn('Failed to fetch dashboard trends or no data returned:', res);
@@ -67,7 +60,6 @@ export const DashboardProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     } catch (e) {
       console.error('Error fetching dashboard trends:', e);
       setDashboardTrends(null); // Clear on error
-      // Fallback to cache?
     } finally {
       setIsLoadingTrends(false);
     }
