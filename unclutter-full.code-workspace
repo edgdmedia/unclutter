@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "backup"
+		},
+		{
+			"path": "main"
+		},
+		{
+			"path": "modules"
+		},
+		{
+			"path": "docs"
+		}
+	],
+	"settings": {}
+}
