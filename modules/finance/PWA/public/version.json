@@ -1,12 +1,6 @@
 {
-  "version": "1.0.0",
-  "buildDate": "2025-05-06T21:15:00+01:00",
-  "releaseNotes": "API-first approach implementation with improved token refresh",
-  "forceUpdate": false,
-  "features": [
-    "Core financial management features",
-    "Offline support",
-    "Background synchronization",
-    "API-first architecture"
-  ]
+  "version": "0.0.1",
+  "buildDate": "2025-05-06T21:14:23.555Z",
+  "releaseNotes": "Manual version update",
+  "forceUpdate": false
 }
