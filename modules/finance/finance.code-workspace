@@ -5,6 +5,9 @@
 		},
 		{
 			"path": "PWA"
+		},
+		{
+			"path": "PWA/dist"
 		}
 	],
 	"settings": {}
