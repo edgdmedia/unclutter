@@ -27,7 +27,15 @@ jobs:
           if [ "${{ github.event.head_commit.message }}" == "Deploy all modules" ]; then
             # Force deploy all modules
             CONFIG=$(cat deploy-config.json)
-            MODULES_JSON="{\"module\":$(echo "$CONFIG" | jq -c '.modules | keys')}"
+            # Create a properly formatted JSON for the matrix
+            MODULES_JSON="{\"module\":[]}"
+
+            # Get the module names as an array
+            MODULE_NAMES=$(echo "$CONFIG" | jq -r '.modules | keys[]')
+            # Add each module to the JSON array
+            for MODULE in $MODULE_NAMES; do
+              MODULES_JSON=$(echo "$MODULES_JSON" | jq ".module += [\"$MODULE\"]")
+            done
             echo "Deploying all modules due to commit message"
           else
             # Get list of changed files - safely handle first push to branch
