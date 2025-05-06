@@ -23,23 +23,39 @@ jobs:
       - name: Detect changed modules
         id: set-matrix
         run: |
-          # Get list of changed files
-          CHANGED_FILES=$(git diff --name-only HEAD^ HEAD)
-          
-          # Read deploy config
-          CONFIG=$(cat deploy-config.json)
-          
-          # Initialize array for changed modules
-          MODULES_JSON="{\"module\":[]}"
-          
-          # Check each module in config
-          for MODULE in $(echo "$CONFIG" | jq -r '.modules | keys[]'); do
-            # Check if any changed file is in this module's directory
-            if echo "$CHANGED_FILES" | grep -q "modules/$MODULE/"; then
-              # Add module to the list
-              MODULES_JSON=$(echo "$MODULES_JSON" | jq ".module += [\"$MODULE\"]")
+          # Handle first-time runs or force all modules
+          if [ "${{ github.event.head_commit.message }}" == "Deploy all modules" ]; then
+            # Force deploy all modules
+            CONFIG=$(cat deploy-config.json)
+            MODULES_JSON="{\"module\":$(echo "$CONFIG" | jq -c '.modules | keys')}"
+            echo "Deploying all modules due to commit message"
+          else
+            # Get list of changed files - safely handle first push to branch
+            if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+              CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+            else
+              # First commit to branch - include all files
+              CHANGED_FILES=$(git ls-files)
             fi
-          done
+            
+            # Read deploy config
+            CONFIG=$(cat deploy-config.json)
+            
+            # Initialize array for changed modules
+            MODULES_JSON="{\"module\":[]}"
+          fi
+          
+          # Only run the loop if we're not deploying all modules
+          if [ "${{ github.event.head_commit.message }}" != "Deploy all modules" ]; then
+            # Check each module in config
+            for MODULE in $(echo "$CONFIG" | jq -r '.modules | keys[]'); do
+              # Check if any changed file is in this module's directory
+              if echo "$CHANGED_FILES" | grep -q "modules/$MODULE/"; then
+                # Add module to the list
+                MODULES_JSON=$(echo "$MODULES_JSON" | jq ".module += [\"$MODULE\"]")
+              fi
+            done
+          fi
           
           echo "matrix=$MODULES_JSON" >> $GITHUB_OUTPUT
   
@@ -116,14 +132,25 @@ jobs:
           source: modules/${{ matrix.module }}/build.tar.gz
           target: "/tmp"
           
+      - name: Prepare deployment variables
+        id: prepare-vars
+        run: |
+          # Get config values
+          CONFIG=$(cat deploy-config.json)
+          SERVER_PATH=$(echo "$CONFIG" | jq -r '.modules["${{ matrix.module }}"].serverPath')
+          OWNER=$(echo "$CONFIG" | jq -r '.modules["${{ matrix.module }}"].permissions.owner')
+          GROUP=$(echo "$CONFIG" | jq -r '.modules["${{ matrix.module }}"].permissions.group')
+          FILE_MODE=$(echo "$CONFIG" | jq -r '.modules["${{ matrix.module }}"].permissions.fileMode')
+          DIR_MODE=$(echo "$CONFIG" | jq -r '.modules["${{ matrix.module }}"].permissions.dirMode')
+          
+          # Save variables to env file for SSH action
+          echo "SERVER_PATH=$SERVER_PATH" >> $GITHUB_ENV
+          echo "OWNER=$OWNER" >> $GITHUB_ENV
+          echo "GROUP=$GROUP" >> $GITHUB_ENV
+          echo "FILE_MODE=$FILE_MODE" >> $GITHUB_ENV
+          echo "DIR_MODE=$DIR_MODE" >> $GITHUB_ENV
+      
       - name: Extract and set permissions
-        env:
-          MODULE: ${{ matrix.module }}
-          SERVER_PATH: ${{ fromJson(steps.get-config.outputs.config).modules[matrix.module].serverPath }}
-          OWNER: ${{ fromJson(steps.get-config.outputs.config).modules[matrix.module].permissions.owner }}
-          GROUP: ${{ fromJson(steps.get-config.outputs.config).modules[matrix.module].permissions.group }}
-          FILE_MODE: ${{ fromJson(steps.get-config.outputs.config).modules[matrix.module].permissions.fileMode }}
-          DIR_MODE: ${{ fromJson(steps.get-config.outputs.config).modules[matrix.module].permissions.dirMode }}
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
