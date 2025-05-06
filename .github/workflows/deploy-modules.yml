@@ -75,6 +75,7 @@ jobs:
       matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
     outputs:
       config: ${{ steps.get-config.outputs.config }}
+      matrix: ${{ needs.detect-changes.outputs.matrix }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -89,7 +90,7 @@ jobs:
     needs: prepare-build
     runs-on: ubuntu-latest
     strategy:
-      matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.prepare-build.outputs.matrix) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -140,7 +141,7 @@ jobs:
     needs: [prepare-build, build]
     runs-on: ubuntu-latest
     strategy:
-      matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.prepare-build.outputs.matrix) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -173,7 +174,7 @@ jobs:
     needs: [prepare-build, deploy]
     runs-on: ubuntu-latest
     strategy:
-      matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.prepare-build.outputs.matrix) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -223,7 +224,7 @@ jobs:
     needs: [prepare-build, extract-and-set-permissions]
     runs-on: ubuntu-latest
     strategy:
-      matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.prepare-build.outputs.matrix) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
