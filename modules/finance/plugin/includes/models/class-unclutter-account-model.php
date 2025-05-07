@@ -85,19 +85,102 @@ class Unclutter_Account_Model extends Unclutter_Base_Model
      * @param int $id Account ID
      * @return bool True on success, false on failure
      */
+    /**
+     * Delete an account and reassign its transactions to the default 'Closed Account'.
+     * @param int $profile_id Profile ID
+     * @param int $id Account ID
+     * @return bool True on success, false on failure
+     */
     public static function delete_account($profile_id, $id)
     {
         global $wpdb;
         $table = self::get_table_name();
+        $transactions_table = $wpdb->prefix . 'unclutter_finance_transactions';
 
-        // Delete account
-        $result = $wpdb->delete(
-            $table,
-            ['id' => $id, 'profile_id' => $profile_id]
+        // Get the account to be deleted
+        $account = self::get_account($profile_id, $id);
+        if (!$account) return false;
+
+        // Find or create the default 'Closed Account' for this profile
+        $default_account_id = self::get_or_create_closed_account($profile_id);
+        if (!$default_account_id) return false;
+
+        // Reassign all transactions referencing this account
+        $wpdb->update(
+            $transactions_table,
+            ['account_id' => $default_account_id],
+            ['account_id' => $id]
         );
 
+        // Delete the account
+        $result = $wpdb->delete($table, ['id' => $id, 'profile_id' => $profile_id]);
         return $result !== false;
     }
+
+    /**
+     * Get or create the default 'Closed Account' for a profile.
+     * @param int $profile_id
+     * @return int|false Account ID or false on failure
+     */
+    public static function get_or_create_closed_account($profile_id)
+    {
+        global $wpdb;
+        $table = self::get_table_name();
+        // Try to find an existing 'Closed Account' (case-insensitive)
+        $closed = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $table WHERE profile_id = %d AND LOWER(name) = %s LIMIT 1",
+            $profile_id,
+            strtolower('Closed Account')
+        ));
+        if ($closed) return $closed->id;
+        // Use first available account_type for type_id
+        $type_id = 1;
+        $category_table = $wpdb->prefix . 'unclutter_finance_categories';
+        $type_id_row = $wpdb->get_row($wpdb->prepare(
+            "SELECT id FROM $category_table WHERE profile_id = %d AND type = %s LIMIT 1",
+            $profile_id,
+            'account'
+        ));
+        if ($type_id_row) $type_id = $type_id_row->id;
+        // Create one if not found
+        $data = [
+            'profile_id' => $profile_id,
+            'name' => 'Closed Account',
+            'type_id' => $type_id,
+            'balance' => 0,
+            'is_active' => 0,
+            'created_at' => current_time('mysql'),
+            'updated_at' => current_time('mysql')
+        ];
+        $result = $wpdb->insert($table, $data);
+        return $result ? $wpdb->insert_id : false;
+    }
+    /**
+     * Check if the default 'Closed Account' is referenced by any transaction
+     */
+    /**
+     * Check if the default 'Closed Account' is referenced by any transaction
+     */
+    public static function is_closed_account_in_use($profile_id)
+    {
+        global $wpdb;
+        $table = self::get_table_name();
+        $transactions_table = $wpdb->prefix . 'unclutter_finance_transactions';
+        $closed = $wpdb->get_row($wpdb->prepare(
+            "SELECT id FROM $table WHERE profile_id = %d AND LOWER(name) = %s LIMIT 1",
+            $profile_id,
+            strtolower('Closed Account')
+        ));
+        if (!$closed) return false;
+        $count = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM $transactions_table WHERE account_id = %d",
+            $closed->id
+        ));
+        return $count > 0;
+    }
+
+
+
 
     /**
      * Get an account by ID
@@ -121,13 +204,7 @@ class Unclutter_Account_Model extends Unclutter_Base_Model
         ));
     }
 
-    /**
-     * Get accounts by profile ID
-     * 
-     * @param int $profile_id Profile ID
-     * @param array $args Additional arguments (type_id, is_active, etc.)
-     * @return array Array of account objects
-     */
+
     /**
      * Get accounts by profile ID with pagination
      * 
@@ -143,13 +220,11 @@ class Unclutter_Account_Model extends Unclutter_Base_Model
 
         // --- Pagination Setup ---
         $page = isset($args['page']) ? max(1, intval($args['page'])) : 1;
-        $per_page = isset($args['per_page']) ? max(1, intval($args['per_page'])) : 10; // Default 10 per page
+        $per_page = isset($args['per_page']) ? max(1, intval($args['per_page'])) : 20;
         $offset = ($page - 1) * $per_page;
 
-        // --- Base Query Construction (for both count and results) ---
-        $base_query = "FROM $table a 
-                       LEFT JOIN $category_table c ON a.type_id = c.id 
-                       WHERE a.profile_id = %d";
+        // --- Base Query ---
+        $base_query = "FROM $table a LEFT JOIN $category_table c ON a.type_id = c.id WHERE a.profile_id = %d";
         $params = [$profile_id];
 
         // Add type_id filter if provided
@@ -157,11 +232,17 @@ class Unclutter_Account_Model extends Unclutter_Base_Model
             $base_query .= " AND a.type_id = %d";
             $params[] = $args['type_id'];
         }
-
         // Add is_active filter if provided
         if (isset($args['is_active'])) {
             $base_query .= " AND a.is_active = %d";
             $params[] = $args['is_active'];
+        }
+        // Exclude default 'Closed Account' unless in use
+        $closed_account_id = self::get_closed_account_id($profile_id);
+        $closed_in_use = self::is_closed_account_in_use($profile_id);
+        if ($closed_account_id && !$closed_in_use) {
+            $base_query .= " AND a.id != %d";
+            $params[] = $closed_account_id;
         }
 
         // --- Get Total Count ---
@@ -173,14 +254,13 @@ class Unclutter_Account_Model extends Unclutter_Base_Model
         $query = "SELECT a.*, c.name as type_name, c.type as category_type " . $base_query;
 
         // Define allowed columns and directions
-        $allowed_order_by_columns = ['a.name', 'a.balance', 'c.name', 'a.created_at']; // Example columns (use actual prefixed names)
+        $allowed_order_by_columns = ['a.name', 'a.balance', 'c.name', 'a.created_at'];
         $allowed_order_directions = ['ASC', 'DESC'];
 
         // Determine the ORDER BY column
         $order_by_column = 'a.name'; // Default
         if (isset($args['order_by'])) {
-            $sanitized_order_by = sanitize_key($args['order_by']); // Sanitize input
-            // Allow mapping from simple names to prefixed names if needed
+            $sanitized_order_by = sanitize_key($args['order_by']);
             $column_map = [
                 'name' => 'a.name',
                 'balance' => 'a.balance',
@@ -190,20 +270,17 @@ class Unclutter_Account_Model extends Unclutter_Base_Model
             ];
             if (isset($column_map[$sanitized_order_by]) && in_array($column_map[$sanitized_order_by], $allowed_order_by_columns)) {
                 $order_by_column = $column_map[$sanitized_order_by];
-            } elseif (in_array($sanitized_order_by, $allowed_order_by_columns)) { // Allow direct prefixed column names too
-                 $order_by_column = $sanitized_order_by;
+            } elseif (in_array($sanitized_order_by, $allowed_order_by_columns)) {
+                $order_by_column = $sanitized_order_by;
             }
         }
-        
         // Determine the ORDER direction
         $order_direction = 'ASC'; // Default
         if (isset($args['order']) && in_array(strtoupper($args['order']), $allowed_order_directions)) {
             $order_direction = strtoupper($args['order']);
         }
-
         // Add the validated ORDER BY clause
         $query .= " ORDER BY " . $order_by_column . " " . $order_direction;
-
         // Add LIMIT and OFFSET
         $query .= " LIMIT %d OFFSET %d";
         $params[] = $per_page;
@@ -222,6 +299,19 @@ class Unclutter_Account_Model extends Unclutter_Base_Model
                 'per_page' => $per_page,
             ]
         ];
+    }
+
+    // Helper to get the closed account id for a profile
+    public static function get_closed_account_id($profile_id)
+    {
+        global $wpdb;
+        $table = self::get_table_name();
+        $closed = $wpdb->get_row($wpdb->prepare(
+            "SELECT id FROM $table WHERE profile_id = %d AND LOWER(name) = %s LIMIT 1",
+            $profile_id,
+            strtolower('Closed Account')
+        ));
+        return $closed ? $closed->id : null;
     }
 
     /**

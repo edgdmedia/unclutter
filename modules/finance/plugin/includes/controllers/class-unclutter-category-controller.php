@@ -435,11 +435,11 @@ class Unclutter_Category_Controller {
             return new WP_REST_Response(['success' => false, 'message' => 'Cannot delete system categories'], 403);
         }
         
-        // Delete category
-        $deleted = Unclutter_Category_Model::delete_category($id);
+        // Delete category (ensure service layer is used for proper reassignment logic)
+        $deleted = Unclutter_Category_Service::delete_category($profile_id, $id);
         
         if (!$deleted) {
-            return new WP_REST_Response(['success' => false, 'message' => 'Failed to delete category'], 500);
+            return new WP_REST_Response(['success' => false, 'message' => 'Failed to delete category or reassign transactions'], 500);
         }
         
         return new WP_REST_Response(['success' => true], 200);

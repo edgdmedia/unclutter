@@ -127,9 +127,10 @@ class Unclutter_Category_Service
      * @param int $id Category ID
      * @return bool True on success, false on failure
      */
-    public static function delete_category($id)
+    public static function delete_category($profile_id, $id)
     {
-        return Unclutter_Category_Model::delete_category($id);
+        // Ensure the model's new logic is used, passing profile_id for context
+        return Unclutter_Category_Model::delete_category($profile_id, $id);
     }
 
     /**

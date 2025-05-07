@@ -223,12 +223,12 @@ class Unclutter_Account_Controller
         $args = [];
 
         // Get the parameter, respecting the default
-$type_id_param = $request->get_param('type_id');
+        $type_id_param = $request->get_param('type_id');
 
-// Add type_id filter only if it was provided and isn't the empty default
-if ($type_id_param !== null && $type_id_param !== '') {
-    $args['type_id'] = intval($type_id_param);
-}
+        // Add type_id filter only if it was provided and isn't the empty default
+        if ($type_id_param !== null && $type_id_param !== '') {
+            $args['type_id'] = intval($type_id_param);
+        }
 
         // Add is_active filter if provided
         if ($request->get_param('is_active') !== null) {

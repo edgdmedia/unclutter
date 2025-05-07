@@ -56,6 +56,11 @@ export const CategoryProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Add functions for add/update/delete categories here if needed
   // Example:
   // const addCategory = async (categoryData) => { ... };
+  // const deleteCategory = async (id: string) => {
+  //   // Call categoriesApi.deleteCategory(id)
+  //   // After deletion, call fetchCategories();
+  //   // Optionally: trigger a transaction refresh for UI update
+  // }
 
   const value = {
     categories,

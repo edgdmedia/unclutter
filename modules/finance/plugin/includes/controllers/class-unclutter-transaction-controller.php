@@ -238,8 +238,8 @@ class Unclutter_Transaction_Controller
         $profile_id = Unclutter_Auth_Service::get_profile_id_from_token($request);
         $id = (int) $request['id'];
         $result = Unclutter_Transaction_Service::delete_transaction($profile_id, $id);
-        if (is_wp_error($result)) {
-            return $result;
+        if ($result === false) {
+            return new WP_REST_Response(['success' => false], 404);
         }
         return new WP_REST_Response(['success' => true], 200);
     }

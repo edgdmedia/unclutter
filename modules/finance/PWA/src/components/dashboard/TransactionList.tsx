@@ -72,11 +72,13 @@ const TransactionList: React.FC<TransactionListProps> = ({
                 {getTransactionIcon(transaction.type)}
               </div>
               <div>
-                <p className="font-medium text-sm">{transaction.category_name || 'Uncategorized'}</p>
+                {/* Show 'Uncategorized' if category_name is missing or empty, with muted style */}
+                <p className={cn("font-medium text-sm", !transaction.category_name && "text-muted-foreground italic")}>{transaction.category_name || 'Uncategorized'}</p>
                 {transaction.description && (
                   <p className="text-xs text-muted-foreground">{transaction.description}</p>
                 )}
-                <p className="text-xs text-muted-foreground">{formatDate(transaction.transaction_date)} • {transaction.account_name}</p>
+                {/* Show 'Closed Account' if account_name is missing or empty, with muted style */}
+                <p className={cn("text-xs text-muted-foreground", !transaction.account_name && "italic")}>{formatDate(transaction.transaction_date)} • {transaction.account_name || 'Closed Account'}</p>
               </div>
             </div>
             <div className="flex items-center">

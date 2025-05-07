@@ -190,6 +190,9 @@ export const TransactionProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   };
 
+  // NOTE: When displaying transactions, if transaction.account is missing, show 'Closed Account'.
+  // If transaction.category is missing, show 'Uncategorized'.
+  // This logic should be handled in the UI components using this context.
   const value = {
     transactions,
     fetchTransactions,

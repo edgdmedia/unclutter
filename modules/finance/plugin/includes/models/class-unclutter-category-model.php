@@ -74,17 +74,81 @@ class Unclutter_Category_Model extends Unclutter_Base_Model {
      * @param int $id Category ID
      * @return bool True on success, false on failure
      */
-    public static function delete_category($id) {
+    /**
+     * Delete a category and reassign its transactions to the default 'Uncategorized' category.
+     * @param int $id Category ID
+     * @return bool True on success, false on failure
+     */
+    public static function delete_category($profile_id, $id) {
         global $wpdb;
         $table = self::get_table_name();
-        
-        // Delete category
-        $result = $wpdb->delete(
-            $table,
-            ['id' => $id]
+        $transactions_table = $wpdb->prefix . 'unclutter_finance_transactions';
+
+        // Get the category to be deleted
+        $category = self::get_category($id);
+        if (!$category) return false;
+        $profile_id = $category->profile_id;
+
+        // Find or create the default 'Uncategorized' category for this profile
+        $default_category_id = self::get_or_create_uncategorized($profile_id, $category->type);
+        if (!$default_category_id) return false;
+
+        // Reassign all transactions referencing this category
+        $wpdb->update(
+            $transactions_table,
+            ['category_id' => $default_category_id],
+            ['category_id' => $id]
         );
-        
+
+        // Delete the category
+        $result = $wpdb->delete($table, ['id' => $id]);
         return $result !== false;
+    }
+
+    /**
+     * Get or create the default 'Uncategorized' category for a profile and type.
+     * @param int $profile_id
+     * @param string $type
+     * @return int|false Category ID or false on failure
+     */
+    public static function get_or_create_uncategorized($profile_id, $type = 'expense') {
+        global $wpdb;
+        $table = self::get_table_name();
+        // Try to find an existing 'Uncategorized' (case-insensitive)
+        $uncat = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $table WHERE profile_id = %d AND type = %s AND LOWER(name) = %s LIMIT 1",
+            $profile_id, $type, strtolower('Uncategorized')
+        ));
+        if ($uncat) return $uncat->id;
+        // Create one if not found
+        $data = [
+            'profile_id' => $profile_id,
+            'name' => 'Uncategorized',
+            'type' => $type,
+            'is_active' => 1,
+            'created_at' => current_time('mysql'),
+            'updated_at' => current_time('mysql')
+        ];
+        $result = $wpdb->insert($table, $data);
+        return $result ? $wpdb->insert_id : false;
+    }
+    /**
+     * Check if the default 'Uncategorized' is referenced by any transaction
+     */
+    public static function is_uncategorized_in_use($profile_id, $type = 'expense') {
+        global $wpdb;
+        $table = self::get_table_name();
+        $transactions_table = $wpdb->prefix . 'unclutter_finance_transactions';
+        $uncat = $wpdb->get_row($wpdb->prepare(
+            "SELECT id FROM $table WHERE profile_id = %d AND type = %s AND LOWER(name) = %s LIMIT 1",
+            $profile_id, $type, strtolower('Uncategorized')
+        ));
+        if (!$uncat) return false;
+        $count = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM $transactions_table WHERE category_id = %d",
+            $uncat->id
+        ));
+        return $count > 0;
     }
     
     /**
@@ -114,29 +178,42 @@ class Unclutter_Category_Model extends Unclutter_Base_Model {
     public static function get_categories_by_profile_and_type($profile_id, $type, $args = []) {
         global $wpdb;
         $table = self::get_table_name();
-        
-        $query = "SELECT * FROM $table WHERE (profile_id = %d OR profile_id = 0) AND type = %s";
+        // Step 1: Find the 'Uncategorized' category ID
+        $uncat = $wpdb->get_row($wpdb->prepare(
+            "SELECT id FROM $table WHERE profile_id = %d AND type = %s AND LOWER(name) = %s",
+            $profile_id, $type, strtolower('Uncategorized')
+        ));
+        $uncat_id = $uncat ? $uncat->id : null;
+        $uncat_in_use = false;
+        if ($uncat_id) {
+            $uncat_in_use = (bool)$wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->prefix}unclutter_finance_transactions WHERE category_id = %d",
+                $uncat_id
+            ));
+        }
+
+        // Step 2: Build the WHERE clause
+        $where = "(profile_id = %d OR profile_id = 0) AND type = %s";
         $params = [$profile_id, $type];
-        
-        // Add parent_id filter if provided
         if (isset($args['parent_id'])) {
             if ($args['parent_id'] === null) {
-                $query .= " AND parent_id IS NULL";
+                $where .= " AND parent_id IS NULL";
             } else {
-                $query .= " AND parent_id = %d";
+                $where .= " AND parent_id = %d";
                 $params[] = $args['parent_id'];
             }
         }
-        
-        // Add is_active filter if provided
         if (isset($args['is_active'])) {
-            $query .= " AND is_active = %d";
+            $where .= " AND is_active = %d";
             $params[] = $args['is_active'];
         }
-        
-        // Add order by
-        $query .= " ORDER BY name ASC";
-        
+        // Step 3: Exclude 'Uncategorized' if not in use
+        if ($uncat_id && !$uncat_in_use) {
+            $where .= " AND id != %d";
+            $params[] = $uncat_id;
+        }
+        // Step 4: Add order by
+        $query = "SELECT * FROM $table WHERE $where ORDER BY name ASC";
         return $wpdb->get_results($wpdb->prepare($query, $params));
     }
     
@@ -168,9 +245,9 @@ class Unclutter_Category_Model extends Unclutter_Base_Model {
         if ($active_only) {
             $args['is_active'] = 1;
         }
-        
         return self::get_categories_by_profile_and_type($profile_id, 'income', $args);
     }
+
     
     /**
      * Get all expense categories (system + user defined)
@@ -184,9 +261,9 @@ class Unclutter_Category_Model extends Unclutter_Base_Model {
         if ($active_only) {
             $args['is_active'] = 1;
         }
-        
         return self::get_categories_by_profile_and_type($profile_id, 'expense', $args);
     }
+
     
     /**
      * Get all tags (user defined)

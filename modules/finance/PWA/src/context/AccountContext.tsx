@@ -112,7 +112,10 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
         console.log('[AccountContext] Updating local state...');
         setAccounts(prev => prev.filter(acc => acc.id !== id));
         console.log('[AccountContext] Account deletion complete');
-        // Note: Dashboard will be updated separately
+        // Optionally: trigger a transaction refresh if you want to ensure UI is up to date
+        // if (typeof window !== 'undefined' && window.dispatchEvent) {
+        //   window.dispatchEvent(new CustomEvent('refreshTransactions'));
+        // }
         return true;
       } else {
         console.error('[AccountContext] API returned error for delete account:', response);

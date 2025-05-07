@@ -228,8 +228,16 @@ const TransactionFormDialog: React.FC<TransactionFormDialogProps> = ({
                 : 'Record a new financial transaction.'}
             </DialogDescription>
           </DialogHeader>
+
+          {/* Show notice if no accounts exist */}
+          {(!accounts || accounts.length === 0) && (
+            <div className="mb-4 p-4 bg-yellow-50 border border-yellow-300 text-yellow-800 rounded">
+              <strong>No accounts found.</strong> Please create or add an account before adding a transaction.
+            </div>
+          )}
+
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" disabled={!accounts || accounts.length === 0}>
               <FormField
                 control={form.control}
                 name="type"
