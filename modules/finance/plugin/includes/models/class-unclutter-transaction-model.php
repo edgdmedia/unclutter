@@ -879,6 +879,67 @@ class Unclutter_Transaction_Model extends Unclutter_Base_Model {
     }
 
     /**
+     * Get incoming and outgoing transfer totals by account for a profile within a date range
+     *
+     * @param int $profile_id Profile ID
+     * @param string $start_date Start date (YYYY-MM-DD)
+     * @param string $end_date End date (YYYY-MM-DD)
+     * @return array Array of transfer totals per account: [ 'account_id' => [ 'incoming' => float, 'outgoing' => float ] ]
+     */
+    public static function get_transfer_totals_by_account($profile_id, $start_date, $end_date) {
+        global $wpdb;
+        $table = self::get_table_name();
+        $accounts_table = $wpdb->prefix . 'unclutter_finance_accounts';
+        // Outgoing: account_id is the source
+        $outgoing = $wpdb->get_results($wpdb->prepare(
+            "SELECT t.account_id, a.name as account_name, SUM(t.amount) as total_outgoing
+             FROM $table t
+             JOIN $accounts_table a ON t.account_id = a.id
+             WHERE t.profile_id = %d
+             AND t.type = 'transfer'
+             AND t.transaction_date BETWEEN %s AND %s
+             GROUP BY t.account_id",
+            $profile_id, $start_date, $end_date
+        ), ARRAY_A);
+        // Incoming: destination_account_id is the destination
+        $incoming = $wpdb->get_results($wpdb->prepare(
+            "SELECT t.destination_account_id as account_id, a.name as account_name, SUM(t.amount) as total_incoming
+             FROM $table t
+             JOIN $accounts_table a ON t.destination_account_id = a.id
+             WHERE t.profile_id = %d
+             AND t.type = 'transfer'
+             AND t.transaction_date BETWEEN %s AND %s
+             GROUP BY t.destination_account_id",
+            $profile_id, $start_date, $end_date
+        ), ARRAY_A);
+        // Build result as account_id => [ 'incoming' => float, 'outgoing' => float, 'account_name' => string ]
+        $result = [];
+        foreach ($outgoing as $row) {
+            $acc_id = $row['account_id'];
+            $result[$acc_id] = [
+                'account_id' => $acc_id,
+                'account_name' => $row['account_name'],
+                'incoming' => 0.0,
+                'outgoing' => (float)$row['total_outgoing']
+            ];
+        }
+        foreach ($incoming as $row) {
+            $acc_id = $row['account_id'];
+            if (!isset($result[$acc_id])) {
+                $result[$acc_id] = [
+                    'account_id' => $acc_id,
+                    'account_name' => $row['account_name'],
+                    'incoming' => (float)$row['total_incoming'],
+                    'outgoing' => 0.0
+                ];
+            } else {
+                $result[$acc_id]['incoming'] = (float)$row['total_incoming'];
+            }
+        }
+        return $result;
+    }
+
+    /**
      * Get income and expenses by date for a profile within a date range
      * 
      * @param int $profile_id Profile ID

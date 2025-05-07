@@ -24,6 +24,7 @@ import * as userApi from '@/services/userApi';
 // Removed for API-first approach
 // import * as dbService from '@/services/dbService';
 import { useNavigate } from 'react-router-dom';
+import SettingsInstallButton from '@/components/ui/SettingsInstallButton';
 
 const ProfileSchema = z.object({
   firstName: z.string().min(1, 'First name is required'),
@@ -259,12 +260,11 @@ const Settings: React.FC = () => {
     }
   };
   
-
   return (
     <div className="space-y-6 pb-20 animate-fade-in">
       <h1 className="text-2xl font-bold">Settings</h1>
 
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex flex-col justify-between items-center mb-4">
         <Tabs defaultValue="profile" onValueChange={setActiveTab} value={activeTab} className="flex-1">
           <TabsList className="grid grid-cols-4 w-full max-w-3xl">
             <TabsTrigger value="profile">Profile</TabsTrigger>
@@ -636,9 +636,17 @@ const Settings: React.FC = () => {
           </Card>
         </TabsContent>
       </Tabs>
+    <div className="mt-8 flex flex-col items-center text-center">
+      <div className="text-xs text-gray-500">
+        Version {import.meta.env.VITE_APP_VERSION || '1.0.0'} | {new Date().getFullYear()}
+      </div>
+      <div className="mt-2">
+        {/* Install button or instructions */}
+        <SettingsInstallButton />
+      </div>
     </div>
     </div>
-)
-};
+    </div>
+)};
 
 export default Settings;

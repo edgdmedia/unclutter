@@ -3,24 +3,13 @@ const CACHE_VERSION = '1.0.0';
 const CACHE_NAME = `finance-pwa-cache-${CACHE_VERSION}`;
 const STATIC_CACHE_NAME = `finance-pwa-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE_NAME = `finance-pwa-dynamic-${CACHE_VERSION}`;
-const OFFLINE_URL = '/offline.html';
-const OFFLINE_ASSETS = [
-  '/offline.html',
-  '/assets/offline.css',
-  '/assets/offline-icon.svg'
-];
+// Offline fallback assets removed. No offline.html is used.
 
-// Install event - cache the offline page and static assets
+// Install event - cache only static assets (no offline.html)
 self.addEventListener('install', (event) => {
   console.log('[ServiceWorker] Install version:', CACHE_VERSION);
-  
   event.waitUntil(
     (async () => {
-      // Cache offline assets
-      const offlineCache = await caches.open(CACHE_NAME);
-      await offlineCache.addAll(OFFLINE_ASSETS);
-      console.log('[ServiceWorker] Cached offline assets');
-      
       // Cache static assets (app shell)
       const staticCache = await caches.open(STATIC_CACHE_NAME);
       await staticCache.addAll([
@@ -35,8 +24,6 @@ self.addEventListener('install', (event) => {
       console.log('[ServiceWorker] Cached static assets');
     })()
   );
-  
-  // Activate the service worker immediately
   self.skipWaiting();
 });
 
@@ -167,24 +154,23 @@ async function handleStaticAsset(event) {
   }
 }
 
-// Handle HTML requests with a network-first strategy
 async function handleHtmlRequest(event) {
   try {
     // Try network first
     const response = await fetch(event.request);
     return response;
   } catch (error) {
-    // If network fails, try to serve from cache
+    // If network fails, serve cached index.html as fallback
     const cache = await caches.open(STATIC_CACHE_NAME);
-    const cachedResponse = await cache.match(event.request);
-    
-    if (cachedResponse) {
-      return cachedResponse;
+    const cachedIndex = await cache.match('/index.html');
+    if (cachedIndex) {
+      return cachedIndex;
     }
-    
-    // If not in cache, serve the offline page
-    const offlineCache = await caches.open(CACHE_NAME);
-    return offlineCache.match(OFFLINE_URL);
+    // If index.html is not cached (very rare), return a generic error response
+    return new Response('Offline and index.html not available', {
+      status: 503,
+      headers: { 'Content-Type': 'text/plain' }
+    });
   }
 }
 

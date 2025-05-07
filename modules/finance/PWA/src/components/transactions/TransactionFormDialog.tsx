@@ -413,8 +413,12 @@ const TransactionFormDialog: React.FC<TransactionFormDialogProps> = ({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {(transactionType === 'income' ? incomeCategories : expenseCategories).map(category => (
-                            <SelectItem key={category.id} value={category.id}>
+                          {(transactionType === 'income' ? incomeCategories :
+                            transactionType === 'expense' ? expenseCategories :
+                            // For transfer, add hidden Transfer category (id=36)
+                            [{ id: '36', name: 'Transfer', type: 'transfer', hidden: true }]
+                          ).map(category => (
+                            <SelectItem key={category.id} value={category.id} style={category.hidden ? { display: 'none' } : {}}>
                               {category.name}
                             </SelectItem>
                           ))}

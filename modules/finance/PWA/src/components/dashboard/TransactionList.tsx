@@ -72,7 +72,10 @@ const TransactionList: React.FC<TransactionListProps> = ({
                 {getTransactionIcon(transaction.type)}
               </div>
               <div>
-                <p className="font-medium text-sm">{transaction.description || transaction.category_name}</p>
+                <p className="font-medium text-sm">{transaction.category_name || 'Uncategorized'}</p>
+                {transaction.description && (
+                  <p className="text-xs text-muted-foreground">{transaction.description}</p>
+                )}
                 <p className="text-xs text-muted-foreground">{formatDate(transaction.transaction_date)} • {transaction.account_name}</p>
               </div>
             </div>

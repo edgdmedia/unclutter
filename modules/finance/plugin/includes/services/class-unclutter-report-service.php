@@ -195,16 +195,62 @@ class Unclutter_Report_Service
         $accounts = [];
         if (class_exists('Unclutter_Transaction_Model')) {
             if (method_exists('Unclutter_Transaction_Model', 'get_totals_by_account')) {
-                if ($type === 'income' || $type === 'expense') {
-                    $accounts = Unclutter_Transaction_Model::get_totals_by_account($profile_id, $type, $start_date, $end_date);
-                } else {
-                    $income = Unclutter_Transaction_Model::get_totals_by_account($profile_id, 'income', $start_date, $end_date);
-                    $expense = Unclutter_Transaction_Model::get_totals_by_account($profile_id, 'expense', $start_date, $end_date);
-                    $accounts = [
-                        'income' => $income,
-                        'expense' => $expense
+                // Get income and expense per account
+                $income = Unclutter_Transaction_Model::get_totals_by_account($profile_id, 'income', $start_date, $end_date);
+                $expense = Unclutter_Transaction_Model::get_totals_by_account($profile_id, 'expense', $start_date, $end_date);
+                // Get transfer (incoming/outgoing) per account
+                $transfers = method_exists('Unclutter_Transaction_Model', 'get_transfer_totals_by_account')
+                    ? Unclutter_Transaction_Model::get_transfer_totals_by_account($profile_id, $start_date, $end_date)
+                    : [];
+
+                // Build unified per-account summary
+                $account_map = [];
+                // Income
+                foreach ($income as $row) {
+                    $acc_id = $row->account_id;
+                    $account_map[$acc_id] = [
+                        'account_id' => $acc_id,
+                        'account_name' => $row->account_name,
+                        'income' => (float)$row->total,
+                        'expense' => 0.0,
+                        'transfer_in' => 0.0,
+                        'transfer_out' => 0.0
                     ];
                 }
+                // Expense
+                foreach ($expense as $row) {
+                    $acc_id = $row->account_id;
+                    if (!isset($account_map[$acc_id])) {
+                        $account_map[$acc_id] = [
+                            'account_id' => $acc_id,
+                            'account_name' => $row->account_name,
+                            'income' => 0.0,
+                            'expense' => (float)$row->total,
+                            'transfer_in' => 0.0,
+                            'transfer_out' => 0.0
+                        ];
+                    } else {
+                        $account_map[$acc_id]['expense'] = (float)$row->total;
+                    }
+                }
+                // Transfers
+                foreach ($transfers as $acc_id => $row) {
+                    if (!isset($account_map[$acc_id])) {
+                        $account_map[$acc_id] = [
+                            'account_id' => $acc_id,
+                            'account_name' => $row['account_name'],
+                            'income' => 0.0,
+                            'expense' => 0.0,
+                            'transfer_in' => (float)$row['incoming'],
+                            'transfer_out' => (float)$row['outgoing']
+                        ];
+                    } else {
+                        $account_map[$acc_id]['transfer_in'] = (float)$row['incoming'];
+                        $account_map[$acc_id]['transfer_out'] = (float)$row['outgoing'];
+                    }
+                }
+                // Convert to indexed array
+                $accounts = array_values($account_map);
             }
         }
         $result = [
