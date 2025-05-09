@@ -1,22 +1,8 @@
 import { api } from './apiClient';
 
-export interface Category {
-  id: string;
-  profile_id: string;
-  name: string;
-  type: string; // 'income', 'expense', 'account_type', 'tag'
-  parent_id: string | null;
-  description?: string;
-  is_active: string;
-  created_at: string;
-  updated_at: string;
-  children?: Category[];
-}
+import { Category, CreateCategoryData, CategoriesResponse } from '../types';
 
-export interface CategoriesResponse {
-  success: boolean;
-  data: Category[];
-}
+
 
 // Get all categories
 export const getCategories = async () => {
@@ -76,14 +62,7 @@ export const getCategory = async (id: string) => {
   }
 };
 
-// Create a new category
-export interface CreateCategoryData {
-  name: string;
-  type: 'income' | 'expense' | 'account_type' | 'tag';
-  parent_id?: string | null;
-  description?: string;
-  is_active?: string;
-}
+
 
 export const createCategory = async (data: CreateCategoryData) => {
   try {

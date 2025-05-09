@@ -1,44 +1,5 @@
 import { api } from './apiClient';
-// Removed IndexedDB dependencies for API-first approach
-// import * as dbService from './dbService';
-import { v4 as uuidv4 } from 'uuid';
-
-// Helper function removed as part of API-first approach
-// const notifyQueueChanged = () => {
-//   window.dispatchEvent(new Event('offlineQueueChanged'));
-// };
-
-export interface Transaction {
-  id: string;
-  profile_id?: string;
-  account_id: string;
-  category_id: string;
-  amount: string | number;
-  transaction_date: string;
-  description: string | null;
-  notes: string | null;
-  type: string;
-  created_at?: string;
-  updated_at?: string;
-  account_name?: string;
-  category_name?: string;
-  tags?: any[];
-  attachments?: any[];
-  _synced?: boolean;
-  _pendingAction?: 'create' | 'update' | 'delete';
-  _localId?: string;
-}
-
-export interface TransactionsResponse {
-  success: boolean;
-  data: Transaction[];
-  pagination: {
-    total: number;
-    per_page: number;
-    page: number;
-    total_pages: number;
-  };
-}
+import { CreateTransactionData } from '../types';
 
 // Get recent transactions (default to 5) - API-first approach
 export const getRecentTransactions = async (limit: number = 5) => {
@@ -96,18 +57,7 @@ export const getAccountTransactions = async (accountId: string) => {
   }
 };
 
-// Create a new transaction - API-first approach
-export interface CreateTransactionData {
-  amount: number;
-  type: 'income' | 'expense' | 'transfer';
-  transaction_date: string;
-  category_id: number | string;
-  description?: string;
-  notes?: string;
-  account_id: number | string;
-  tags?: (number | string)[];
-  attachments?: any[];
-}
+
 
 export const createTransaction = async (data: CreateTransactionData) => {
   try {

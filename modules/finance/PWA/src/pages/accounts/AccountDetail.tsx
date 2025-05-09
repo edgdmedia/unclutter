@@ -14,6 +14,8 @@ import { toast } from '@/components/ui/sonner';
 import { formatCurrency } from '@/utils/formatters';
 
 const AccountDetail: React.FC = () => {
+  const [selectedTransaction, setSelectedTransaction] = useState<any | null>(null);
+
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
@@ -113,25 +115,23 @@ const AccountDetail: React.FC = () => {
   const handleAddTransaction = async (values: any) => {
     try {
       setIsLoading(true);
-      
       // Format transaction data for the API
       const newTransaction = {
-        transaction_date: values.date.toISOString().split('T')[0], // Format as YYYY-MM-DD
+        transaction_date: values.date.toISOString().split('T')[0],
         amount: values.amount,
         description: values.description || 'Unnamed transaction',
-        category_id: values.category || '1', // Default to first category if none selected
-        account_id: id, // Use the current account ID
+        category_id: values.category || '1',
+        account_id: id,
         type: values.type,
         tags: values.tags || [],
-        notes: values.notes || ''
+        notes: values.notes || '',
+        ...(values.type === 'transfer' && values.toAccount ? { destination_account_id: values.toAccount } : {})
       };
-      
       // Call the API method
       await addTransaction(newTransaction as any);
       toast.success('Transaction added successfully!');
       setShowTransactionForm(false);
-      
-      // Refresh transactions list for this account
+      setSelectedTransaction(null);
       await fetchTransactionsByAccount(id as string);
     } catch (error) {
       console.error('Failed to add transaction:', error);
@@ -140,6 +140,48 @@ const AccountDetail: React.FC = () => {
       setIsLoading(false);
     }
   };
+
+  const handleEditTransaction = async (values: any) => {
+    try {
+      setIsLoading(true);
+      if (!selectedTransaction) return;
+      const updatedTransaction = {
+        transaction_date: values.date.toISOString().split('T')[0],
+        amount: values.amount,
+        description: values.description || 'Unnamed transaction',
+        category_id: values.category || '1',
+        account_id: id,
+        type: values.type,
+        tags: values.tags || [],
+        notes: values.notes || '',
+        ...(values.type === 'transfer' && values.toAccount ? { destination_account_id: values.toAccount } : {})
+      };
+      await updateTransaction(selectedTransaction.id, updatedTransaction);
+      toast.success('Transaction updated successfully!');
+      setShowTransactionForm(false);
+      setSelectedTransaction(null);
+      await fetchTransactionsByAccount(id as string);
+    } catch (error) {
+      console.error('Failed to update transaction:', error);
+      toast.error('Failed to update transaction. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleViewTransaction = (transaction: any) => {
+    // Prepare transaction for editing
+    const viewTransaction = {
+      ...transaction,
+      date: new Date(transaction.transaction_date),
+      category: transaction.category_id,
+      amount: parseFloat(transaction.amount),
+      ...(transaction.type === 'transfer' && transaction.destination_account_id ? { toAccount: transaction.destination_account_id } : {})
+    };
+    setSelectedTransaction(viewTransaction);
+    setShowTransactionForm(true);
+  };
+
 
   const handleUpdateAccount = async (values: any) => {
     if (!id) return;
@@ -270,7 +312,10 @@ const AccountDetail: React.FC = () => {
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
           </TabsList>
           <Button 
-            onClick={() => setShowTransactionForm(true)}
+            onClick={() => {
+              setSelectedTransaction(null);
+              setShowTransactionForm(true);
+            }}
           >
             <Plus className="mr-1 h-4 w-4" /> Add Transaction
           </Button>
@@ -311,12 +356,19 @@ const AccountDetail: React.FC = () => {
                   </Button>
                 </div>
               ) : transactions.length > 0 ? (
-                <TransactionList transactions={transactions} />
+                <TransactionList 
+                  transactions={transactions}
+                  onEdit={handleEditTransaction}
+                  onSelect={handleViewTransaction}
+                />
               ) : (
                 <div className="py-8 text-center">
                   <p className="text-muted-foreground">No transactions found for this account.</p>
                   <Button 
-                    onClick={() => setShowTransactionForm(true)} 
+                    onClick={() => {
+                      setSelectedTransaction(null);
+                      setShowTransactionForm(true);
+                    }} 
                     className="mt-4"
                   >
                     <Plus className="mr-1 h-4 w-4" /> Add Transaction
@@ -342,9 +394,10 @@ const AccountDetail: React.FC = () => {
       <TransactionFormDialog
         open={showTransactionForm}
         onOpenChange={setShowTransactionForm}
-        onSubmit={handleAddTransaction}
+        onSubmit={selectedTransaction ? handleEditTransaction : handleAddTransaction}
         isLoading={isLoading}
         initialAccount={id}
+        initialTransaction={selectedTransaction}
       />
 
       {/* Account Edit Form Dialog */}

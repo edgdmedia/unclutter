@@ -52,6 +52,7 @@ import {
 
 import { useAccounts } from '@/context/AccountContext';
 import { useCategories } from '@/context/CategoryContext';
+import CreatableSelect from 'react-select/creatable';
 import { useTransactions } from '@/context/TransactionContext';
 
 interface TransactionFormDialogProps {
@@ -73,6 +74,7 @@ const formSchema = z.object({
   description: z.string().optional(),
   notes: z.string().optional(),
   toAccount: z.string().optional(),
+  tags: z.array(z.string()).optional(),
 }).superRefine((data, ctx) => {
   // Category is required for income and expense transactions
   if (data.type !== 'transfer' && (!data.category || data.category.length === 0)) {
@@ -139,7 +141,10 @@ const TransactionFormDialog: React.FC<TransactionFormDialogProps> = ({
         category: initialTransaction.category?.id || initialTransaction.category || '',
         description: initialTransaction.description || '',
         notes: initialTransaction.notes || '',
-        toAccount: initialTransaction.toAccount?.id || '',
+        toAccount: typeof initialTransaction.toAccount === 'object'
+          ? initialTransaction.toAccount?.id
+          : initialTransaction.toAccount || '',
+        tags: Array.isArray(initialTransaction.tags) ? initialTransaction.tags : [],
       });
     } else {
       form.reset({
@@ -151,6 +156,7 @@ const TransactionFormDialog: React.FC<TransactionFormDialogProps> = ({
         description: '',
         notes: '',
         toAccount: '',
+        tags: [],
       });
     }
   }, [initialTransaction, initialAccount, form, accounts]);
@@ -175,10 +181,11 @@ const TransactionFormDialog: React.FC<TransactionFormDialogProps> = ({
         category_id: values.category,
         account_id: values.account,
         type: values.type,
-        tags: [], // Add tags if needed
+        tags: (values.tags || []).map(tag => tag.id), // Send only tag ids to the API
         // Include destination_account_id for transfer transactions
         ...(values.type === 'transfer' && values.toAccount ? { destination_account_id: values.toAccount } : {})
       };
+
       
       // The destination_account_id is already added in the transactionData object above
       
@@ -407,34 +414,64 @@ const TransactionFormDialog: React.FC<TransactionFormDialogProps> = ({
                 <FormField
                   control={form.control}
                   name="category"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Category</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                        value={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select category" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {(transactionType === 'income' ? incomeCategories :
-                            transactionType === 'expense' ? expenseCategories :
-                            // For transfer, add hidden Transfer category (id=36)
-                            [{ id: '36', name: 'Transfer', type: 'transfer', hidden: true }]
-                          ).map(category => (
-                            <SelectItem key={category.id} value={category.id} style={category.hidden ? { display: 'none' } : {}}>
-                              {category.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                  render={({ field }) => {
+                    // categories with color
+                    const catOptions = (transactionType === 'income' ? incomeCategories :
+                      transactionType === 'expense' ? expenseCategories :
+                      [{ id: '36', name: 'Transfer', type: 'transfer', hidden: true }]
+                    ).filter(cat => !cat.hidden);
+                    return (
+                      <FormItem>
+                        <FormLabel>Category</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                          value={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select category">
+                                {(() => {
+                                  const selected = catOptions.find(cat => cat.id === field.value);
+                                  return selected ? (
+                                    <span style={{ display: 'flex', alignItems: 'center' }}>
+                                      <span style={{
+                                        display: 'inline-block',
+                                        width: 16,
+                                        height: 16,
+                                        borderRadius: '50%',
+                                        background: selected.color || '#888',
+                                        marginRight: 8
+                                      }} />
+                                      {selected.name}
+                                    </span>
+                                  ) : 'Select category';
+                                })()}
+                              </SelectValue>
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {catOptions.map(category => (
+                              <SelectItem key={category.id} value={category.id}>
+                                <span style={{ display: 'flex', alignItems: 'center' }}>
+                                  <span style={{
+                                    display: 'inline-block',
+                                    width: 16,
+                                    height: 16,
+                                    borderRadius: '50%',
+                                    background: category.color || '#888',
+                                    marginRight: 8
+                                  }} />
+                                  {category.name}
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
               )}
 
@@ -466,6 +503,99 @@ const TransactionFormDialog: React.FC<TransactionFormDialogProps> = ({
                 )}
               />
 
+              {/* Tag selector with react-select CreatableSelect */}
+              <FormField
+                control={form.control}
+                name="tags"
+                render={({ field }) => {
+                  // Tags are objects: { id, name, color, type }
+                  const tagOptions = (categories ? categories.filter(cat => cat.type === 'tag') : []).map(tag => ({
+                    value: tag.id,
+                    label: tag.name,
+                    color: tag.color || '#888',
+                    id: tag.id,
+                    name: tag.name,
+                    type: 'tag',
+                  }));
+
+                  // When creating a tag, show a color picker
+                  const [inputValue, setInputValue] = React.useState('');
+                  const [newTagColor, setNewTagColor] = React.useState('#888888');
+
+                  return (
+                    <FormItem>
+                      <FormLabel>Tags</FormLabel>
+                      <FormControl>
+                        <div>
+                          <CreatableSelect
+                            isMulti
+                            isClearable
+                            inputValue={inputValue}
+                            onInputChange={setInputValue}
+                            value={(field.value || []).map((tag: any) => ({
+                              value: tag.id,
+                              label: tag.name,
+                              color: tag.color || '#888',
+                              id: tag.id,
+                              name: tag.name,
+                              type: 'tag',
+                            }))}
+                            options={tagOptions}
+                            onChange={selected => {
+                              field.onChange(selected ? selected.map(option => ({
+                                id: option.id,
+                                name: option.label,
+                                color: option.color,
+                                type: 'tag',
+                              })) : []);
+                            }}
+                            formatOptionLabel={option => (
+                              <div style={{ display: 'flex', alignItems: 'center' }}>
+                                <span style={{
+                                  display: 'inline-block',
+                                  width: 16,
+                                  height: 16,
+                                  borderRadius: '50%',
+                                  background: option.color,
+                                  marginRight: 8
+                                }} />
+                                {option.label}
+                              </div>
+                            )}
+                            onCreateOption={input => {
+                              // Assign a default color; backend will set the actual color
+                              const newTag = {
+                                id: input,
+                                name: input,
+                                color: '#888888',
+                                type: 'tag',
+                              };
+                              field.onChange([...(field.value || []), newTag]);
+                            }}
+                            styles={{
+                              multiValue: (base, state) => ({
+                                ...base,
+                                backgroundColor: state.data.color,
+                                color: '#fff',
+                              }),
+                              multiValueLabel: (base) => ({
+                                ...base,
+                                color: '#fff',
+                              }),
+                              multiValueRemove: (base) => ({
+                                ...base,
+                                color: '#fff',
+                                ':hover': { backgroundColor: '#333', color: '#fff' },
+                              }),
+                            }}
+                          />
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
+              />
               <DialogFooter className="gap-2 flex justify-end flex-row sm:gap-0">
                 {initialTransaction && (
                   <Button 

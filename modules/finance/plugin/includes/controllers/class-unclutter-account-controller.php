@@ -99,6 +99,12 @@ class Unclutter_Account_Controller
                             return is_string($param);
                         },
                     ],
+                    'color' => [
+                        'required' => false,
+                        'validate_callback' => function ($param) {
+                            return is_string($param);
+                        },
+                    ],
                 ],
             ]
         ]);

@@ -1,5 +1,5 @@
-import { api } from './apiClient';
 import axios, { AxiosError } from 'axios';
+import { UserProfile, UserPreferences, UserNotifications } from '../types';
 
 // Create a separate axios instance for non-finance endpoints
 const profileApi = axios.create({
@@ -16,31 +16,6 @@ profileApi.interceptors.request.use(config => {
   return config;
 });
 
-// User profile interface
-export interface UserProfile {
-  id?: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone?: string;
-}
-
-// User preferences interface
-export interface UserPreferences {
-  currency: string;
-  dateFormat: string;
-  startOfMonth: string;
-  language: string;
-}
-
-// User notification settings interface
-export interface UserNotifications {
-  emailNotifications: boolean;
-  pushNotifications: boolean;
-  budgetAlerts: boolean;
-  goalReminders: boolean;
-  weeklyReports: boolean;
-}
 
 // Get user profile
 export const getUserProfile = async () => {

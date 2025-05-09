@@ -3,49 +3,6 @@ import { api } from './apiClient';
 // For debugging - log the API base URL
 console.log('Dashboard API using base URL:', api.defaults.baseURL);
 
-export interface DashboardSummary {
-  total_income: number;
-  total_expenses: number;
-  net_balance: number;
-  accounts: {
-    items?: {
-      id: string;
-      profile_id: string;
-      name: string;
-      type_id: string;
-      balance: string;
-      description: string;
-      institution: string;
-      is_active: string;
-      created_at: string;
-      updated_at: string;
-      type_name: string;
-      category_type: string;
-    }[];
-  } | {
-    id: string;
-    profile_id: string;
-    name: string;
-    type_id: string;
-    balance: string;
-    description: string;
-    institution: string;
-    is_active: string;
-    created_at: string;
-    updated_at: string;
-    type_name: string;
-    category_type: string;
-  }[];
-  budgets?: any[];
-  goals?: any[];
-}
-
-export interface DashboardTrends {
-  labels: string[];
-  income: number[];
-  expenses: number[];
-}
-
 export const getDashboardSummary = async () => {
   try {
     console.log('Fetching dashboard summary...');

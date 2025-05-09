@@ -17,15 +17,86 @@ import { formatCurrency } from '@/utils/formatters';
 import { toast } from '@/components/ui/use-toast';
 
 const Dashboard: React.FC = () => {
+  const [selectedTransaction, setSelectedTransaction] = useState<any | null>(null);
+
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [showTransactionForm, setShowTransactionForm] = useState(false);
+
   const { dashboardSummary, fetchDashboardSummary, isLoadingSummary, dashboardTrends, fetchDashboardTrends, isLoadingTrends } = useDashboard();
   const { transactions, fetchTransactions, isLoadingTransactions, addTransaction } = useTransactions();
   const { accounts, fetchAccounts, isLoadingAccounts } = useAccounts();
   const { user } = useAuth();
   
   // Add loading states for different data types
+
+  const handleAddTransaction = async (values: any) => {
+    try {
+      setIsLoading(true);
+      const newTransaction = {
+        transaction_date: values.date.toISOString().split('T')[0],
+        amount: values.amount,
+        description: values.description || 'Unnamed transaction',
+        category_id: values.category || '1',
+        account_id: values.account,
+        type: values.type,
+        tags: values.tags || [],
+        notes: values.notes || '',
+        ...(values.type === 'transfer' && values.toAccount ? { destination_account_id: values.toAccount } : {})
+      };
+      await addTransaction(newTransaction as any);
+      toast.success('Transaction added successfully!');
+      setShowTransactionForm(false);
+      setSelectedTransaction(null);
+      await fetchTransactions(20);
+    } catch (error) {
+      console.error('Failed to add transaction:', error);
+      toast.error('Failed to add transaction. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEditTransaction = async (values: any) => {
+    try {
+      setIsLoading(true);
+      if (!selectedTransaction) return;
+      const updatedTransaction = {
+        transaction_date: values.date.toISOString().split('T')[0],
+        amount: values.amount,
+        description: values.description || 'Unnamed transaction',
+        category_id: values.category || '1',
+        account_id: values.account,
+        type: values.type,
+        tags: values.tags || [],
+        notes: values.notes || '',
+        ...(values.type === 'transfer' && values.toAccount ? { destination_account_id: values.toAccount } : {})
+      };
+      await updateTransaction(selectedTransaction.id, updatedTransaction);
+      toast.success('Transaction updated successfully!');
+      setShowTransactionForm(false);
+      setSelectedTransaction(null);
+      await fetchTransactions(20);
+    } catch (error) {
+      console.error('Failed to update transaction:', error);
+      toast.error('Failed to update transaction. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleViewTransaction = (transaction: any) => {
+    const viewTransaction = {
+      ...transaction,
+      date: new Date(transaction.transaction_date),
+      category: transaction.category_id,
+      amount: parseFloat(transaction.amount),
+      ...(transaction.type === 'transfer' && transaction.destination_account_id ? { toAccount: transaction.destination_account_id } : {})
+    };
+    setSelectedTransaction(viewTransaction);
+    setShowTransactionForm(true);
+  };
+
   const [isLoadingBudgets, setIsLoadingBudgets] = useState(false);
   const [isLoadingGoals, setIsLoadingGoals] = useState(false);
   const [hasAttemptedFetch, setHasAttemptedFetch] = useState({
@@ -156,38 +227,7 @@ const Dashboard: React.FC = () => {
     isLoadingTrends
   ]);
 
-  // Using formatCurrency from utils
 
-    const handleAddTransaction = async (values: any) => {
-      try {
-        setIsLoading(true);
-        
-        // Format transaction data for the API
-        const newTransaction = {
-          transaction_date: values.date.toISOString().split('T')[0], // Format as YYYY-MM-DD
-          amount: values.amount,
-          description: values.description || 'Unnamed transaction',
-          category_id: values.category || '1', // Default to first category if none selected
-          account_id: values.account,
-          type: values.type,
-          tags: values.tags || [],
-          notes: values.notes || ''
-        };
-        
-        // Call the real API method
-        await addTransaction(newTransaction as any);
-        toast.success('Transaction added successfully!');
-        setShowTransactionForm(false);
-        
-        // Refresh transactions list
-        await fetchTransactions(20);
-      } catch (error) {
-        console.error('Failed to add transaction:', error);
-        toast.error('Failed to add transaction. Please try again.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
 
   return (
     <div className="space-y-6 pb-8 relative">
@@ -206,7 +246,10 @@ const Dashboard: React.FC = () => {
       <Button 
         className="fixed bottom-20 right-6 rounded-full w-14 h-14 shadow-lg z-50 flex items-center justify-center p-0"
         size="icon"
-        onClick={() => setShowTransactionForm(true)}
+        onClick={() => {
+          setSelectedTransaction(null);
+          setShowTransactionForm(true);
+        }}
       >
         <Plus className="h-6 w-6" />
       </Button>
@@ -215,8 +258,9 @@ const Dashboard: React.FC = () => {
       <TransactionFormDialog
         open={showTransactionForm}
         onOpenChange={setShowTransactionForm}
-        onSubmit={handleAddTransaction}
+        onSubmit={selectedTransaction ? handleEditTransaction : handleAddTransaction}
         isLoading={isLoading}
+        initialTransaction={selectedTransaction}
       />
 
       {/* Summary Stats */}
@@ -301,7 +345,12 @@ const Dashboard: React.FC = () => {
                 <p className="text-muted-foreground">Loading transactions...</p>
               </div>
             ) : transactions.length > 0 ? (
-              <TransactionList transactions={transactions} limit={5} />
+              <TransactionList 
+                transactions={transactions} 
+                limit={5} 
+                onEdit={handleEditTransaction}
+                onSelect={handleViewTransaction}
+              />
             ) : hasAttemptedFetch.transactions ? (
               <div className="py-8 text-center">
                 <p className="text-muted-foreground mb-4">No transactions found</p>

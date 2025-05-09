@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { format, parseISO } from 'date-fns';
 import TransactionFormDialog from '@/components/transactions/TransactionFormDialog';
 import { toast } from '@/components/ui/sonner';
-import { Transaction } from '@/services/transactionsApi';
+import { Transaction } from '@/types';
 import TransactionList from '@/components/dashboard/TransactionList';
 import { useTransactions } from '@/context/TransactionContext';
 
@@ -74,7 +74,8 @@ const Transactions: React.FC = () => {
         account_id: values.account,
         type: values.type,
         tags: values.tags || [],
-        notes: values.notes || ''
+        notes: values.notes || '',
+        ...(values.type === 'transfer' && values.toAccount ? { destination_account_id: values.toAccount } : {})
       };
       
       // Call the real API method
@@ -93,21 +94,23 @@ const Transactions: React.FC = () => {
   };
 
   const handleViewTransaction = (transaction: Transaction) => {
-    // Create a detailed view of transaction for form dialog
+    // Prepare transaction for editing in the form dialog
     const accountObj = {
       id: transaction.account_id
     };
-    
+
     const viewTransaction = {
       ...transaction,
       account: accountObj,
-      // Convert string date to Date object for the form
       date: parseISO(transaction.transaction_date),
-      // Map API fields to form fields
       category: transaction.category_id,
-      amount: parseFloat(transaction.amount)
+      amount: parseFloat(transaction.amount),
+      // Ensure toAccount is set for transfers
+      ...(transaction.type === 'transfer' && transaction.destination_account_id ? { toAccount: transaction.destination_account_id } : {}),
+      // Ensure tags is always an array
+      tags: Array.isArray(transaction.tags) ? transaction.tags : [],
     };
-    
+
     setSelectedTransaction(viewTransaction);
     setShowTransactionForm(true);
   };
